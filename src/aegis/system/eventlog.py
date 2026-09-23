@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import re
 import subprocess
 from typing import Iterable, List
 from xml.etree import ElementTree as ET
 
 from aegis.sources import BlockEvent, SourceUnavailable
 
-CHANNEL = "Microsoft-Windows-Windows Firewall With Advanced Security\\Firewall"
+# maquina real (Win11): separador do canal e "/" — com "\" o wevtutil responde
+# "O caminho de canal especificado e invalido" (rc 15000) e a fonte ficava cega.
+CHANNEL = "Microsoft-Windows-Windows Firewall With Advanced Security/Firewall"
 _WECMD = "wevtutil"
+_XMLNS = re.compile(r"""\s*xmlns(:\w+)?=['"][^'"]*['"]""")
 
 # nomes de campos (inglês) do EventData -> nosso modelo
 _KEYS = {
@@ -55,9 +59,18 @@ def _is_private(ip: str) -> bool:
             or ip.startswith("fe80") or ip.startswith("127."))
 
 
+def _normalize(xml_text: str) -> str:
+    # maquina real (Win11): wevtutil /f:xml emite varios <Event> irmaos sem raiz
+    # (ET chama isso de "junk after document element") e cada um traz um
+    # xmlns default que quebraria root.iter("Event"); BOM tambem ja aparece.
+    text = xml_text.lstrip("\ufeff").strip()
+    text = _XMLNS.sub("", text)
+    return "<Events>%s</Events>" % text
+
+
 def parse_wevtutil_xml(xml_text: str) -> List[BlockEvent]:
     out: List[BlockEvent] = []
-    root = ET.fromstring(xml_text)
+    root = ET.fromstring(_normalize(xml_text))
     for ev in root.iter("Event"):
         fields = {d.get("Name", "").strip(): (d.text or "").strip()
                   for d in ev.iter("Data")}
