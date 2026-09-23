@@ -22,7 +22,13 @@ class FakeFirewallProvider:
         return list(self.stored.values())
 
     def get_rule(self, name: str) -> Optional[RuleInfo]:
-        return self.stored.get(name)
+        # Contrato IFirewallProvider (firewall.py): lookup ignora caixa,
+        # como o firewall do Windows. Varredura sobre os nomes armazenados.
+        wanted = name.lower()
+        for key, info in self.stored.items():
+            if key.lower() == wanted:
+                return info
+        return None
 
     def add_rule(self, spec: RuleSpec) -> None:
         self.stored[spec.name] = RuleInfo(
