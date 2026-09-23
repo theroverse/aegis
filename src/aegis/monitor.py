@@ -74,11 +74,19 @@ class Monitor:
 
     def loop(self, stop: threading.Event, sleep, conn_s: float,
              block_s: float) -> None:
-        last = 0.0
+        """Ultimo recurso: fonte que quebra declara erro e o monitor
+        continua vivo. relogio monotonic nao tem epoca: primeira.poll
+        de bloqueios nao espera block_s."""
+        last = self._clock() - block_s
         while not stop.is_set():
-            now = self._clock()
-            if now - last >= block_s:
-                self.poll_blocked()
-                last = now
-            self.poll_connections()
+            try:
+                now = self._clock()
+                if now - last >= block_s:
+                    self.poll_blocked()
+                    last = now
+                self.poll_connections()
+            except Exception as exc:
+                # qualquer Exception (ex.: ValueError de linha malformada)
+                # vira estado declarado; a thread nunca morre em silencio.
+                self.blocked_state = ("erro", str(exc))
             sleep(conn_s)

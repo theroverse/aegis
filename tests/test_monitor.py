@@ -1,7 +1,8 @@
+import threading
 from dataclasses import replace
 
 from aegis.monitor import Monitor
-from aegis.sources import BlockEvent
+from aegis.sources import BlockEvent, Connection
 from fakes import FakeBlockSource, FakeClock, FakeConnSource
 
 EV = BlockEvent(ts="t", direction="in", protocol="tcp", src="", dst="",
@@ -66,3 +67,56 @@ def test_anel_tem_teto():
     # teto de 5 conservou. O que o teste quer provar: teto + recentemente
     # vivo, e o que caiu.
     assert len(snap) == 5 and snap[0].port == "1011" and snap[-1].port == "1007"
+
+
+def test_loop_poliga_conexoes_e_para_no_evento_de_parada():
+    stop = threading.Event()
+    ticks = []
+    conns = [Connection(pid=1, process="x", protocol="tcp",
+                        local="127.0.0.1:53", remote="*", status="LISTEN")]
+    m = make(conn_source=FakeConnSource(conns=conns))
+
+    def sleep(s):
+        ticks.append(s)
+        if len(ticks) >= 2:  # dorme 2x e para: o loop termina sozinho
+            stop.set()
+
+    m.loop(stop, sleep, conn_s=0.01, block_s=5.0)
+    snap = m.snapshot()
+    assert snap["conexoes"] == conns  # poll_connections rodou
+    # 1a iteracao poliu bloqueios na hora (lote consumido) mesmo com o
+    # relogio parado: last comeca em clock()-block_s, nao em 0.0.
+    assert [e.port for e in snap["bloqueios"]] == ["3476", "6881"]
+    assert len(ticks) == 2
+
+
+class FonteQuebrada:
+    """Nova_events explode uma vez (ex.: ValueError de linha malformada,
+    aqui RuntimeError) e depois volta ao normal."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def new_events(self):
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("linha de log malformada")
+        return []
+
+
+def test_fonte_quebrada_declara_erro_e_loop_sobrevive():
+    stop = threading.Event()
+    vistos = []
+    m = make(block_source=FonteQuebrada())
+
+    def sleep(s):
+        vistos.append(m.blocked_state)  # estado declarado no fim da iteracao
+        if len(vistos) >= 2:
+            stop.set()
+
+    m.loop(stop, sleep, conn_s=0.01, block_s=5.0)  # nao lancou: thread viva
+    # guarda de ultimo recurso: o RuntimeError virou ("erro", motivo) e o
+    # loop seguiu; no 2o poll limpo o estado volta a "ok" (nunca fica velho).
+    assert vistos[0][0] == "erro" and "malformada" in vistos[0][1]
+    assert vistos[1][0] == "ok"
+    assert len(vistos) == 2

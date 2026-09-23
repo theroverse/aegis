@@ -31,8 +31,14 @@ class SourceUnavailable(Exception):
 
 
 class IConnectionSource(Protocol):
+    """Contrato: implementacoes devem falhar apenas com SourceUnavailable
+    ou OSError, e normalizar protocol para minusculas."""
+
     def connections(self) -> List[Connection]: ...
 
 
 class IBlockEventSource(Protocol):
+    """Contrato: implementacoes devem falhar apenas com SourceUnavailable
+    ou OSError, e normalizar protocol para minusculas."""
+
     def new_events(self) -> List[BlockEvent]: ...
