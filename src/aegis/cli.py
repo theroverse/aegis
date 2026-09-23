@@ -88,15 +88,20 @@ def main(entry: Path, argv=None) -> int:
              "conexoes": len(s["conexoes"]),
              "bloqueios_no_anel": len(s["bloqueios"]),
              "estado_bloqueios": s["estado_bloqueios"],
+             "estado_conexoes": s["estado_conexoes"],
              "revisoes_pendentes": len(engine.drafts.all("pendente"))})
     elif args.cmd == "rules":
         out([r.__dict__ for r in engine.provider.list_rules()])
     elif args.cmd == "ask-ai":
+        # Regras que ja tocam neste programa vao de verdade no prompt; a
+        # varredura ignora caixa, como o contrato get_rule do provedor.
+        existing = [r.name for r in engine.provider.list_rules()
+                    if r.program.lower() == args.program.lower()]
         print(engine.ask_ai({"program": args.program,
                              "direction": args.direction,
                              "protocol": args.protocol, "port": args.port,
                              "origin": "pedido manual", "profile": "private",
-                             "existing": []}))
+                             "existing": existing}))
     elif args.cmd == "ingest":
         added = engine.ingest_ai_response(
             Path(args.json_file).read_text(encoding="utf-8-sig"))

@@ -100,3 +100,19 @@ def test_cli_offline_status_rules_audit(tmp_path, capsys):
     assert "Aegis · exemplo" in capsys.readouterr().out
     assert main(entry, ["--offline", "audit"]) == 0
     capsys.readouterr()
+
+
+def test_approve_de_rascunho_terminal_devolve_motivo_sem_traceback(tmp_path):
+    # "rejeitado" e terminal: aprovar de novo nao pode subir ValueError
+    # ("transicao ilicita") nem gerar auditoria — devolve motivo honesto.
+    prov, eng = make_engine(tmp_path)
+    drafts = eng.ingest_ai_response(json.dumps([{
+        "rule": SPEC_JSON, "rationale": "porta de escuta", "confidence": "media"}]))
+    draft_id = drafts[0].draft_id
+    eng.drafts.set_status(draft_id, "rejeitado")
+    audit_before = len(eng.audit.read())
+    res = eng.approve_and_apply(draft_id)
+    assert res["ok"] is False
+    assert "terminal" in res["motivo"] and "rejeitado" in res["motivo"]
+    assert eng.drafts.get(draft_id).status == "rejeitado"
+    assert len(eng.audit.read()) == audit_before

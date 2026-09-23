@@ -2,7 +2,7 @@ import threading
 from dataclasses import replace
 
 from aegis.monitor import Monitor
-from aegis.sources import BlockEvent, Connection
+from aegis.sources import BlockEvent, Connection, SourceUnavailable
 from fakes import FakeBlockSource, FakeClock, FakeConnSource
 
 EV = BlockEvent(ts="t", direction="in", protocol="tcp", src="", dst="",
@@ -120,3 +120,34 @@ def test_fonte_quebrada_declara_erro_e_loop_sobrevive():
     assert vistos[0][0] == "erro" and "malformada" in vistos[0][1]
     assert vistos[1][0] == "ok"
     assert len(vistos) == 2
+
+
+class FonteConnQuebrada:
+    """Fonte de conexoes que so sabe falhar (contrato de sources.py:
+    SourceUnavailable/OSError/uma excessao qualquer de implementation)."""
+
+    def __init__(self, exc):
+        self._exc = exc
+
+    def connections(self):
+        raise self._exc
+
+
+def test_erro_de_conexoes_nao_contamina_estado_dos_bloqueios():
+    # A bug antigo: ValueError no poll_connections caia no try compartilhado
+    # e escrevia ("erro", ...) em estado_bloqueios — acusando o inocente.
+    m = make(conn_source=FonteConnQuebrada(ValueError("psutil quebrou")))
+    m.poll_blocked()
+    m.poll_connections()
+    snap = m.snapshot()
+    assert snap["estado_bloqueios"] == ("ok", "")
+    state, motivo = snap["estado_conexoes"]
+    assert state == "erro" and "psutil" in motivo
+
+
+def test_conexoes_indisponiveis_ficam_declaradas_sem_traceback():
+    m = make(conn_source=FonteConnQuebrada(SourceUnavailable("psutil ausente")))
+    m.poll_connections()
+    state, motivo = m.snapshot()["estado_conexoes"]
+    assert state == "indisponivel" and "ausente" in motivo
+    assert m.snapshot()["estado_bloqueios"] == ("ok", "")

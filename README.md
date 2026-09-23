@@ -67,8 +67,8 @@ python aegis.py approve d001 --replace   # substitui regra de mesmo nome
 python aegis.py audit
 ```
 
-- `status` → `regras`, `conexoes`, `bloqueios_no_anel`, `estado_bloqueios` e
-  `revisoes_pendentes`.
+- `status` → `regras`, `conexoes`, `bloqueios_no_anel`, `estado_bloqueios`,
+  `estado_conexoes` e `revisoes_pendentes`.
 - `rules` → despeja todas as regras como JSON (uma varredura pode ter centenas
   de itens; redirecione para um arquivo se for comparar).
 - `ask-ai` → imprime apenas o **prompt montado**; ele não chama IA nenhuma.
@@ -90,6 +90,9 @@ python aegis.py audit
 - **Cancelar o UAC = nada tocou o sistema.** Se você negar ou cancelar o
   prompt, nenhum processo elevado nasce, nenhum resultado é escrito e o motor
   reporta literalmente *"UAC cancelado — nada tocou o sistema"*.
+- **Sem `AegisApply.exe`, não há UAC a cancelar.** Até a fase de empacotamento
+  (Plano B), uma máquina sem o helper recebe *"helper nao encontrado"* no
+  approve; escrever via CLI num checkout de dev fica pendente dessa fase.
 - **Trilha forense.** Os arquivos `req-*.json` / `res-*.json` trocados com o
   helper ficam no diretório de estado `.aegis/` e **não são apagados** — são a
   prova auditável do que foi pedido e do que voltou.

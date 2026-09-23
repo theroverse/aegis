@@ -59,6 +59,11 @@ class Engine:
 
     def approve_and_apply(self, draft_id: str, replace: bool = False):
         draft = self.drafts.get(draft_id)
+        if draft.status in ("rejeitado", "aplicado"):
+            # estado terminal nao e transicao ilicita a explodir: devolve
+            # motivo honesto, sem traceback e sem tocar em nada.
+            return {"ok": False,
+                    "motivo": f"rascunho em estado terminal '{draft.status}' — nada alterado"}
         if draft.status != "aprovado":
             draft = self.drafts.set_status(draft_id, "aprovado")
         result = self.apply.apply(draft, replace=replace)

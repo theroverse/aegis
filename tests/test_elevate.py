@@ -9,6 +9,14 @@ from aegis.system.firewall_api import ruleinfo_from_com
 import aegis.apply as apply_mod
 
 
+def _helper(tmp_path):
+    # Desde o check "helper nao encontrado" os testes que exercitam o fluxo
+    # pos-spawn precisam de um helper existente (conteudo e irrelevante).
+    h = tmp_path / "AegisApply.exe"
+    h.write_bytes(b"")
+    return h
+
+
 def test_comando_e_uac_visivel_e_espera():
     cmd = build_elevation_command(Path("C:\\AegisApply.exe"),
                                   Path("r.json"), Path("s.json"))
@@ -26,7 +34,7 @@ def test_runner_escreve_le_protocolo_e_cancelo(tmp_path, monkeypatch):
             Path(result_path).write_text(json.dumps(
                 {"ok": False, "motivo": "UAC cancelado"}), encoding="utf-8")
     monkeypatch.setattr(elevate, "_spawn", fake_runner)
-    run = ElevatedRunner(Path("AegisApply.exe"), tmp_path)
+    run = ElevatedRunner(_helper(tmp_path), tmp_path)
     spec = RuleSpec(name="negado", direction="in", action="allow",
                     protocol="tcp", local_ports="80", program="p")
     assert run({"op": "add_rule", "spec": spec.to_dict()}) == \
@@ -35,7 +43,7 @@ def test_runner_escreve_le_protocolo_e_cancelo(tmp_path, monkeypatch):
 
 def test_result_faltante_e_tratado_como_cancelamento(tmp_path, monkeypatch):
     monkeypatch.setattr(elevate, "_spawn", lambda *a: None)  # nao escreve nada
-    run = ElevatedRunner(Path("x.exe"), tmp_path)
+    run = ElevatedRunner(_helper(tmp_path), tmp_path)
     res = run({"op": "noop"})
     assert res["ok"] is False and "cancelado" in res["motivo"]
 
@@ -46,7 +54,7 @@ def test_spawn_quebrado_vira_motivo(tmp_path, monkeypatch):
     def boom(*a):
         raise RuntimeError("sem powershell")
     monkeypatch.setattr(elevate, "_spawn", boom)
-    run = ElevatedRunner(Path("x.exe"), tmp_path)
+    run = ElevatedRunner(_helper(tmp_path), tmp_path)
     res = run({"op": "noop"})
     assert res["ok"] is False
     assert "sem powershell" in res["motivo"]
@@ -57,7 +65,7 @@ def test_result_podre_vira_motivo(tmp_path, monkeypatch):
     def write_garbage(request_path, result_path):
         Path(result_path).write_text("}{lixo", encoding="utf-8")
     monkeypatch.setattr(elevate, "_spawn", write_garbage)
-    run = ElevatedRunner(Path("x.exe"), tmp_path)
+    run = ElevatedRunner(_helper(tmp_path), tmp_path)
     res = run({"op": "noop"})
     assert res["ok"] is False
     assert "ilegivel" in res["motivo"]
@@ -70,7 +78,7 @@ def test_sucesso_do_helper_e_repassado_como_esta(tmp_path, monkeypatch):
         Path(result_path).write_text(json.dumps({"ok": True}),
                                      encoding="utf-8")
     monkeypatch.setattr(elevate, "_spawn", write_ok)
-    run = ElevatedRunner(Path("x.exe"), tmp_path)
+    run = ElevatedRunner(_helper(tmp_path), tmp_path)
     assert run({"op": "noop"}) == {"ok": True}
 
 
@@ -84,3 +92,17 @@ def test_aspas_simples_no_caminho_sao_escapadas():
     joined = " ".join(cmd)
     assert "o''brien" in joined
     assert "-Verb RunAs" in joined
+
+
+def test_helper_auscente_nao_culpa_uac_que_nao_existiu(tmp_path, monkeypatch):
+    # Dev machine sem AegisApply.exe: nunca houve prompt UAC para cancelar —
+    # o motivo deve dizer "helper nao encontrado", nunca "UAC cancelado".
+    # O spawn nao pode ser disparado e o req fica como trilha forense.
+    def spy(*a):
+        raise AssertionError("spawn nao pode disparar sem helper")
+    monkeypatch.setattr(elevate, "_spawn", spy)
+    run = ElevatedRunner(tmp_path / "nao-existe.exe", tmp_path)
+    res = run({"op": "noop"})
+    assert res["ok"] is False
+    assert "nao encontrado" in res["motivo"]
+    assert list(tmp_path.glob("req-*.json")), "trilha forense do pedido"

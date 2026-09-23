@@ -24,6 +24,7 @@ class Monitor:
         self._seen: dict = {}
         self._ring: deque = deque(maxlen=ring_size)
         self.blocked_state = ("ok", "")
+        self.conn_state = ("ok", "")
         self.connections: List = []
         self._lock = threading.Lock()
 
@@ -62,7 +63,18 @@ class Monitor:
                     self._ring.append(fresh)
 
     def poll_connections(self) -> None:
-        self.connections = self._conns.connections()
+        # Estado proprio, espelho do bloqueio: uma quebra no psutil nao pode
+        # tingir estado_bloqueios (e vice-versa). Fonte declaradamente ausente
+        # (SourceUnavailable) diz "indisponivel"; o resto e "erro".
+        try:
+            self.connections = self._conns.connections()
+        except SourceUnavailable as exc:
+            self.conn_state = ("indisponivel", str(exc))
+            return
+        except Exception as exc:
+            self.conn_state = ("erro", str(exc))
+            return
+        self.conn_state = ("ok", "")
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -70,6 +82,7 @@ class Monitor:
                 "conexoes": list(self.connections),
                 "bloqueios": list(self._ring)[::-1],
                 "estado_bloqueios": self.blocked_state,
+                "estado_conexoes": self.conn_state,
             }
 
     def loop(self, stop: threading.Event, sleep, conn_s: float,

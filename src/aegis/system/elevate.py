@@ -66,6 +66,12 @@ class ElevatedRunner:
         res = self.work / f"res-{rid}.json"
         with open(req, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(request, fh, ensure_ascii=False)
+        if not self.helper.exists():
+            # checkout de dev sem o helper empacotado: nao existiu prompt UAC
+            # para cancelar — dizer "UAC cancelado" seria culpar o usuario por
+            # algo que ele nunca viu. req ja escrito fica como trilha forense.
+            return {"ok": False, "motivo": f"helper nao encontrado: {self.helper} — "
+                    "o empacotamento do AegisApply chega na proxima fase"}
         try:
             self._fire(req, res)
         except Exception as exc:
