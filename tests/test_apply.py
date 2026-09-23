@@ -137,3 +137,26 @@ def test_todo_desfecho_deixa_rastro():
     svc = ApplyService(provider, lambda req: {"ok": True}, log)
     svc.apply(draft())
     assert log.read()[-1].endswith("nada alterado")
+
+
+# --- Task 14 (F2): prefixo de propriedade 'Aegis ' exigido no portao ---
+
+def test_nome_sem_prefixo_aegis_e_recusado_antes_de_tocar_o_sistema():
+    provider = FakeFirewallProvider()
+    called = []
+    log = _audit()
+    def runner(req):
+        called.append(req)
+        return {"ok": True}
+    svc = ApplyService(provider, runner, log)
+    sem_prefixo = RuleDraft(
+        spec=RuleSpec(name="qbittorrent escuta", direction="in",
+                      action="allow", protocol="tcp", local_ports="6881",
+                      program="C:\\q\\qbittorrent.exe"),
+        rationale="r", confidence="alta")
+    res = svc.apply(sem_prefixo)
+    assert res["ok"] is False
+    assert res["motivo"].startswith("nome de regra Aegis deve comecar com 'Aegis '")
+    assert called == []  # jamais elevou
+    assert provider.get_rule(sem_prefixo.spec.name) is None
+    assert log.read()[-1].endswith("nada alterado")

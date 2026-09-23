@@ -21,6 +21,15 @@ class ApplyService:
         self.audit = audit
 
     def apply(self, draft: RuleDraft, replace: bool = False) -> Dict[str, Any]:
+        # Portao de propriedade: a camada COM marca built_in = nao-com-prefixo,
+        # entao uma regra criada sem "Aegis " ficaria irremovivel pelo Aegis
+        # depois. Recusa antes de qualquer contato com o sistema.
+        if not draft.spec.name.startswith("Aegis "):
+            self.audit.record("regra.recusada", draft.spec.name,
+                              "nada alterado")
+            return {"ok": False,
+                    "motivo": "nome de regra Aegis deve comecar com 'Aegis ' "
+                              "(prefixo de propriedade)"}
         rules = self.provider.list_rules()
         # conflito de NOME so e sobrevisivel com replace=True (decisao humana
         # explicita); conflito de porta/app bloqueia sempre, antes de elevar.

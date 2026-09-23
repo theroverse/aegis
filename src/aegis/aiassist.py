@@ -29,24 +29,32 @@ Contexto MEDIDO localmente (nao inventado):
 {existing}
 
 Formato da resposta: EXATAMENTE um array JSON com no maximo {max_regras}
-elementos, sem cerca de codigo e sem prosa antes ou depois. Cada elemento:
+elementos, sem cerca de codigo e sem prosa antes ou depois. Cada elemento e
+um objeto JSON valido (sem comentarios), com este aspecto:
 {{
-  "rule": {{  # RuleSpec — exatamente estas chaves, nenhuma a mais
+  "rule": {{
     "name": "Aegis · <app> — <papel da porta>",
-    "direction": "in" | "out",
-    "action": "allow" | "block",
-    "protocol": "tcp" | "udp" | "any",
-    "local_ports": "6881" ou "3476-3481" ou "",
-    "remote_ports": "" (ou faixa) ,
-    "program": "<caminho absoluto medido>",
-    "profiles": ["private" | "domain" | "public"],
+    "direction": "in",
+    "action": "allow",
+    "protocol": "tcp",
+    "local_ports": "6881",
+    "remote_ports": "",
+    "program": "C:\\caminho\\absoluto\\medido.exe",
+    "profiles": ["private"],
     "enabled": true,
     "description": "por que esta regra existe"
   }},
   "rationale": "o mecanismo: por que estas portas, nao outras",
-  "confidence": "baixa" | "media" | "alta",
+  "confidence": "media",
   "checked": "o que foi verificado de fato (arquivo de config, docs) e o que NAO foi"
 }}
+
+O objeto "rule" (RuleSpec) leva exatamente estas chaves, nenhuma a mais.
+Valores permitidos (escolha UM por campo, sem "|"): direction "in" ou "out";
+action "allow" ou "block"; protocol "tcp", "udp" ou "any"; local_ports e
+remote_ports aceitam uma porta ("6881"), uma faixa ("3476-3481") ou string
+vazia quando nao se aplica; profiles e um array com um ou mais de "private",
+"domain", "public"; confidence e "baixa", "media" ou "alta".
 """
 
 
