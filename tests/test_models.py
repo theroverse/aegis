@@ -49,3 +49,37 @@ def test_from_dict_to_dict_roundtrip():
 
 def test_confidences_sao_as_tres_da_casa():
     assert CONFIDENCES == ("baixa", "media", "alta")
+
+
+def test_tcp_sem_nenhuma_porta_recusado():
+    with pytest.raises(SpecError) as err:
+        RuleSpec(name="x", direction="in", action="block",
+                 protocol="tcp", local_ports="", remote_ports="")
+    assert "ao menos uma" in " | ".join(err.value.errors)
+
+
+def test_allow_any_sem_portas_com_programa_valido():
+    spec = RuleSpec(name="App", direction="out", action="allow",
+                    protocol="any", local_ports="", remote_ports="",
+                    program="C:\\app.exe")
+    assert spec.to_dict()["protocol"] == "any"
+
+
+def test_allow_any_sem_portas_e_sem_programa_recusado():
+    with pytest.raises(SpecError) as err:
+        RuleSpec(name="x", direction="out", action="allow",
+                 protocol="any", local_ports="", remote_ports="")
+    assert "sem portas exige o executavel" in " | ".join(err.value.errors)
+
+
+def test_validate_ports_recusa_digitos_unicode():
+    with pytest.raises(ValueError):
+        validate_ports("８０")
+
+
+def test_profiles_lista_nao_alias_apos_construcao():
+    p = ["private"]
+    spec = RuleSpec(name="x", direction="in", action="block",
+                    protocol="tcp", local_ports="80", profiles=p)
+    p.append("public")
+    assert spec.to_dict()["profiles"] == ["private"]

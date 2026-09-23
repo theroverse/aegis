@@ -10,7 +10,7 @@ PROTOCOLS = ("tcp", "udp", "any")
 PROFILES = ("domain", "private", "public")
 CONFIDENCES = ("baixa", "media", "alta")
 
-_PORT_ITEM = re.compile(r"^\d{1,5}(-\d{1,5})?$")
+_PORT_ITEM = re.compile(r"^[0-9]{1,5}(-[0-9]{1,5})?$")
 
 
 class SpecError(ValueError):
@@ -66,16 +66,19 @@ class RuleSpec:
             errors.append(
                 f"local_ports/remote_ports: ao menos uma obrigatoria p/ {self.protocol}"
             )
-        for label, value in (("local_ports", self.local_ports),
-                             ("remote_ports", self.remote_ports)):
+        for label in ("local_ports", "remote_ports"):
+            value = getattr(self, label)
             if value:
                 try:
-                    validate_ports(value)
+                    canonical = validate_ports(value)
                 except ValueError as exc:
                     errors.append(f"{label}: {exc}")
+                else:
+                    setattr(self, label, ",".join(canonical))
         if isinstance(self.profiles, str) or not self.profiles:
             errors.append("profiles: lista nao-vazia de perfis")
         else:
+            self.profiles = tuple(self.profiles)
             bad = [p for p in self.profiles if p not in PROFILES]
             if bad:
                 errors.append(f"profiles: invalidos {bad}")
