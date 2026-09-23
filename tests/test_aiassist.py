@@ -1,6 +1,7 @@
 import pytest
 
-from aegis.aiassist import AiResponseError, RuleDraft, build_prompt, parse_drafts
+from aegis.aiassist import (AiResponseError, RuleDraft, build_prompt,
+                            parse_drafts)
 from aegis.models import SpecError
 
 GOOD = """[
