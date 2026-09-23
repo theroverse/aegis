@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from aegis.firewall import RuleInfo
 from aegis.models import RuleSpec
 
 try:  # sources.py chega no Task 5; fakes e compartilhado
     from aegis.sources import SourceUnavailable
-except ImportError:
+except ModuleNotFoundError:
     class SourceUnavailable(Exception):
         pass
 
@@ -17,7 +17,7 @@ class FakeFirewallProvider:
     use inject() para simular regras do SO."""
 
     def __init__(self):
-        self.stored: dict = {}
+        self.stored: Dict[str, RuleInfo] = {}
         self.removes: List[str] = []
 
     def inject(self, info: RuleInfo):

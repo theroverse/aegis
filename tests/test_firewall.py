@@ -34,3 +34,18 @@ def test_ports_overlap():
     assert ports_overlap("3476-3481", "3480")
     assert ports_overlap("*", "80")
     assert not ports_overlap("80", "443")
+
+
+def test_porta_imparseavel_nao_quebra():
+    assert ports_overlap("443", "https") is True
+    assert ports_overlap("abc", "def") is True
+    assert find_conflicts([info("z", local_ports="https")], SPEC) != []
+
+
+def test_nome_conflita_sem_distinguir_caixa():
+    assert find_conflicts([info("aegis · steam", program="C:\\outro.exe")], SPEC) != []
+
+
+def test_overlap_lista_e_vazio():
+    assert ports_overlap("80,443", "443") is True
+    assert ports_overlap("", "80") is True  # vazio = faixa completa

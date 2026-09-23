@@ -37,7 +37,11 @@ def _ranges(ports: str):
             out.append((0, 65535))
         else:
             lo, _, hi = p.partition("-")
-            out.append((int(lo), int(hi or lo)))
+            try:
+                out.append((int(lo), int(hi or lo)))
+            except ValueError:
+                # porta nao-numerica (ex.: "https"): assume faixa completa e nao crasha
+                out.append((0, 65535))
     return out
 
 
@@ -50,9 +54,10 @@ def ports_overlap(a: str, b: str) -> bool:
 
 
 def find_conflicts(rules: List[RuleInfo], spec: RuleSpec) -> List[RuleInfo]:
+    """Programa vazio no spec desativa deteccao por app (conflitam apenas por nome)."""
     out: List[RuleInfo] = []
     for r in rules:
-        if r.name == spec.name:
+        if r.name.lower() == spec.name.lower():
             out.append(r)
             continue
         same_app = bool(spec.program) and r.program.lower() == spec.program.lower()
