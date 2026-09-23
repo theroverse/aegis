@@ -20,20 +20,30 @@ DEFAULTS: Dict[str, Any] = {
 
 def write_json_atomic(path: Path, data: Any) -> None:
     path = Path(path)
-    tmp = path.parent / (path.name + ".tmp")
-    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(data, fh, ensure_ascii=False, indent=2)
-    os.replace(str(tmp), str(path))
+    # tmp unico por processo: o helper elevado pode escrever no mesmo volume
+    # concorrentemente; um nome fixo colidiria entre writers.
+    tmp = path.parent / ("%s.tmp.%d" % (path.name, os.getpid()))
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(data, fh, ensure_ascii=False, indent=2)
+        os.replace(str(tmp), str(path))
+    finally:
+        # apos os.replace o tmp ja nao existe; isto limpa apenas falhas.
+        if tmp.exists():
+            tmp.unlink()
 
 
 def read_json_lenient(path: Path, fallback: Any = None) -> Any:
     path = Path(path)
-    if not path.exists():
-        return fallback
-    raw = path.read_bytes().decode("utf-8-sig")  # BOM-tolerante
     try:
+        # decode dentro do try: UnicodeDecodeError e subclasse de ValueError,
+        # entao arquivos UTF-16/ANSI corrompidos tambien viram .bak.
+        raw = path.read_bytes().decode("utf-8-sig")  # BOM-tolerante
         return json.loads(raw)
+    except FileNotFoundError:
+        return fallback
     except ValueError:
+        # .bak sobrescreve o anterior de proposito: v0 nao guarda backups com timestamp.
         path.replace(path.with_name(path.name + ".bak"))
         return fallback
 
@@ -49,6 +59,8 @@ def _merge(base: Dict[str, Any], over: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def state_dir(anchor: Path) -> Path:
+    # anchor e o caminho de um arquivo dentro do projeto (ex.: o entry
+    # aegis.py); a pasta .aegis/ fica ao lado dele.
     d = Path(anchor).resolve().parent / ".aegis"
     d.mkdir(parents=True, exist_ok=True)
     return d

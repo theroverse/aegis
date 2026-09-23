@@ -40,3 +40,26 @@ def test_write_json_atomic_nao_deixa_tmp(tmp_path):
 def test_state_dir_cria_pasta(tmp_path):
     d = state_dir(tmp_path / "qualquer")
     assert d.name == ".aegis" and d.exists()
+
+
+def test_write_json_atomic_unicode_decode_erro_vira_bak(tmp_path):
+    path = tmp_path / "config.json"
+    # UTF-16 comeca com BOM \xff\xfe, invalido em UTF-8: cai no fallback
+    # via UnicodeDecodeError (subclasse de ValueError) ou via json; ambos
+    # devem renomear para .bak.
+    path.write_bytes("{}".encode("utf-16"))
+    assert read_json_lenient(path, fallback={"d": 1}) == {"d": 1}
+    assert not path.exists()
+    assert path.with_name("config.json.bak").exists()
+
+
+def test_read_json_lenient_arquivo_ausente(tmp_path):
+    assert read_json_lenient(tmp_path / "nao-existe.json", fallback={"d": 1}) == {"d": 1}
+
+
+def test_write_json_atomic_unique_tmp_sem_resto(tmp_path):
+    target = tmp_path / "y.json"
+    write_json_atomic(target, {"v": 1})
+    write_json_atomic(target, {"v": 2})
+    assert json.loads(target.read_text(encoding="utf-8")) == {"v": 2}
+    assert list(tmp_path.glob("*.tmp*")) == []
