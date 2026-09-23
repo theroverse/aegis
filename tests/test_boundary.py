@@ -24,10 +24,8 @@ def test_motor_puro_nao_conhece_windows():
     viol = []
     for path in sorted(SRC.rglob("*.py")):
         rel = path.as_posix()
-        if any(rel.startswith(f"{e}/") or f"/{e.split('/')[-1]}/" in "/" + rel
-               for e in EXEMPT):
-            continue
-        if "/system/" in rel:
+        if rel.startswith("src/aegis/system/") or rel.startswith("gui/") \
+                or rel.startswith("scripts/"):
             continue
         roots = set(_roots(ast.parse(path.read_text(encoding="utf-8"))))
         bad = roots & FORBIDDEN

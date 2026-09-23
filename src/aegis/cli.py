@@ -10,7 +10,9 @@ def _offline_engine(entry: Path):
     """Motor com fakes embutidos: serve smoke/CI em qualquer SO sem tocar
     no sistema real. Os fakes vivem em tests/fakes.py e sao reusados aqui
     so no modo --offline."""
-    sys.path.insert(0, str(entry.parent / "tests"))
+    p = str(entry.parent / "tests")
+    if p not in sys.path:
+        sys.path.insert(0, p)
     from fakes import FakeBlockSource, FakeConnSource, FakeFirewallProvider
     from aegis.engine import Engine
     prov = FakeFirewallProvider()
@@ -62,7 +64,7 @@ def main(entry: Path, argv=None) -> int:
     sub = parser.add_subparsers(dest="cmd")
     sub.add_parser("status")
     sub.add_parser("rules")
-    p_draft = sub.add_parser("ask-ai", parents=[])
+    p_draft = sub.add_parser("ask-ai")
     p_draft.add_argument("--program", required=True)
     p_draft.add_argument("--direction", default="in")
     p_draft.add_argument("--protocol", default="tcp")

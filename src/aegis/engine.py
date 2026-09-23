@@ -31,8 +31,9 @@ class Engine:
         self._thread: Optional[threading.Thread] = None
 
     def start_monitor(self):
-        if self._thread:
+        if self._thread and self._thread.is_alive():
             return
+        self._stop.clear()
         self._thread = threading.Thread(
             target=self.monitor.loop,
             args=(self._stop, time.sleep,
@@ -57,7 +58,9 @@ class Engine:
         return added
 
     def approve_and_apply(self, draft_id: str, replace: bool = False):
-        draft = self.drafts.set_status(draft_id, "aprovado")
+        draft = self.drafts.get(draft_id)
+        if draft.status != "aprovado":
+            draft = self.drafts.set_status(draft_id, "aprovado")
         result = self.apply.apply(draft, replace=replace)
         if result.get("verificada"):
             self.drafts.set_status(draft_id, "aplicado")
