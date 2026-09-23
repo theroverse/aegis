@@ -86,3 +86,54 @@ def test_remover_regra_aegis_passa_pelo_runner():
     res = svc.remove(SPEC.name)
     assert res["ok"] and seen[0]["op"] == "remove_rule"
     assert provider.get_rule(SPEC.name) is None
+
+
+# --- Task 8 hardening: built_in inegociavel + auditoria imune a falha do runner ---
+
+def test_replace_nao_atropela_regra_builtin():
+    provider = FakeFirewallProvider()
+    # mesma regra do SO, mesmo nome; replace nao pode remove-la do portao
+    provider.inject(RuleInfo(name=SPEC.name, direction="in", action="allow",
+                             protocol="tcp", local_ports="8080",
+                             profiles=("private",), enabled=True,
+                             program="C:\\a.exe", built_in=True))
+    called = []
+    svc = ApplyService(provider, lambda req: called.append(req) or {"ok": True}, _audit())
+    res = svc.apply(draft(), replace=True)
+    assert res["ok"] is False and res["motivo"] == "conflito"
+    assert called == []  # jamais elevou
+
+
+def test_replace_true_ainda_bloqueia_conflito_de_porta():
+    provider = FakeFirewallProvider()
+    provider.inject(RuleInfo(name="outra", direction="in", action="allow",
+                             protocol="tcp", local_ports="8080",
+                             profiles=("private",), enabled=True,
+                             program="C:\\a.exe", built_in=False))
+    svc = ApplyService(provider, lambda req: {"ok": True}, _audit())
+    res = svc.apply(draft(), replace=True)
+    assert res["motivo"] == "conflito"
+
+
+def test_runner_quebra_vira_audit():
+    provider = FakeFirewallProvider()
+    def boom(req):  # spawn/JSON pode estourar; mesmo assim tem que deixar rastro
+        raise RuntimeError("spawn falhou")
+    log = _audit()
+    svc = ApplyService(provider, boom, log)
+    res = svc.apply(draft())
+    assert res["ok"] is False and "spawn falhou" in res["motivo"]
+    last = log.read()[-1]
+    assert "erro interno" in last and SPEC.name in last
+
+
+def test_todo_desfecho_deixa_rastro():
+    provider = FakeFirewallProvider()
+    provider.inject(RuleInfo(name="outra", direction="in", action="allow",
+                             protocol="tcp", local_ports="8080",
+                             profiles=("private",), enabled=True,
+                             program="C:\\a.exe", built_in=False))
+    log = _audit()
+    svc = ApplyService(provider, lambda req: {"ok": True}, log)
+    svc.apply(draft())
+    assert log.read()[-1].endswith("nada alterado")

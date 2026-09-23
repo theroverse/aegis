@@ -24,9 +24,10 @@ class ApplyService:
         rules = self.provider.list_rules()
         # conflito de NOME so e sobrevisivel com replace=True (decisao humana
         # explicita); conflito de porta/app bloqueia sempre, antes de elevar.
+        # regra do sistema nunca some do portao, mesmo com replace
         conflicts = [c for c in find_conflicts(rules, draft.spec)
                      if c.name.lower() != draft.spec.name.lower()
-                     or not replace]
+                     or not replace or c.built_in]
         if conflicts:
             motivo = "conflito"
             self.audit.record("regra.bloqueada-por-conflito", draft.spec.name,
@@ -34,17 +35,26 @@ class ApplyService:
             return {"ok": False, "motivo": motivo,
                     "conflitos": [{"name": c.name, "built_in": c.built_in}
                                   for c in conflicts]}
-        result = self.runner({"op": "add_rule", "spec": draft.spec.to_dict(),
-                              "draft_id": draft.draft_id,
-                              "replace": replace})
-        ok = bool(result.get("ok"))
-        verificada = ok and self.provider.get_rule(draft.spec.name) is not None
+        try:
+            result = self.runner({"op": "add_rule", "spec": draft.spec.to_dict(),
+                                  "draft_id": draft.draft_id,
+                                  "replace": replace})
+            ok = bool(result.get("ok"))
+            verificada = ok and self.provider.get_rule(draft.spec.name) is not None
+        except Exception as exc:
+            # transporte (spawn/JSON) nao pode furar a promessa de todo desfecho auditado
+            self.audit.record("regra.recusada", draft.spec.name,
+                              f"erro interno: {exc}")
+            return {"ok": False, "verificada": False,
+                    "motivo": f"erro interno: {exc}"}
+        motivo = result.get("motivo", "")
+        if ok and not verificada:
+            # o runner aceitou mas a releitura nao achou a regra: explique, nao vaze vazio
+            motivo = "regra nao encontrada depois de aplicar (releitura falhou)"
         self.audit.record("regra.aplicada" if ok else "regra.recusada",
                           draft.spec.name,
-                          "ok+verificado" if verificada else
-                          str(result.get("motivo", "falha")))
-        return {"ok": ok, "verificada": verificada,
-                "motivo": result.get("motivo", "")}
+                          "ok+verificado" if verificada else str(motivo or "falha"))
+        return {"ok": ok, "verificada": verificada, "motivo": motivo}
 
     def remove(self, name: str) -> Dict[str, Any]:
         rule = self.provider.get_rule(name)
@@ -56,8 +66,20 @@ class ApplyService:
                               "recusada: regra do sistema, Aegis so mostra")
             return {"ok": False,
                     "motivo": "esta regra pertence ao sistema; o Aegis nao a edita em silencio"}
-        result = self.runner({"op": "remove_rule", "name": name})
-        ok = bool(result.get("ok")) and self.provider.get_rule(name) is None
+        try:
+            result = self.runner({"op": "remove_rule", "name": name})
+            runner_ok = bool(result.get("ok"))
+            ainda_presente = self.provider.get_rule(name) is not None
+            ok = runner_ok and not ainda_presente
+        except Exception as exc:
+            # transporte (spawn/JSON) nao pode furar a promessa de todo desfecho auditado
+            self.audit.record("regra.remocao.falhou", name,
+                              f"erro interno: {exc}")
+            return {"ok": False, "motivo": f"erro interno: {exc}"}
+        motivo = result.get("motivo", "")
+        if runner_ok and ainda_presente:
+            # o runner confirmou mas a regra segue la: explique, nao vaze vazio
+            motivo = "regra ainda presente depois de remover (releitura falhou)"
         self.audit.record("regra.removida" if ok else "regra.remocao.falhou",
-                          name, "ok" if ok else str(result.get("motivo", "falha")))
-        return {"ok": ok, "motivo": result.get("motivo", "")}
+                          name, "ok" if ok else str(motivo or "falha"))
+        return {"ok": ok, "motivo": motivo}
