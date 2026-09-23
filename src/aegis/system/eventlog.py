@@ -115,9 +115,17 @@ class EventLogBlockSource:
             # contrato da fonte (sources.py): so SourceUnavailable ou OSError escapam
             raise SourceUnavailable("wevtutil timeout")
         if proc.returncode != 0:
-            return []  # canal inexistente/sem eventos: fonte fica "ok" mas vazia
+            # canal ausente/acesso negado = fonte cega; declara, nunca finge ok.
+            # (canal vazio devolve rc 0 e nao cai aqui.)
+            raise SourceUnavailable(
+                "wevtutil rc=%d: %s"
+                % (proc.returncode, (proc.stderr or "").strip()[:120]))
         events = parse_wevtutil_xml(proc.stdout or "<Events/>")
+        # frescor por ts estrito (>): borda de mesmo segundo e limitada e
+        # tolerada em v0 — dedupe/anel do Monitor absorve a duplicidade e o
+        # drop de mesmo segundo e raro.
         fresh = [e for e in events if e.ts > self._last_ts]
         if events:
-            self._last_ts = max(e.ts for e in events)
+            # monotnico: relogio em retrocesso nao deve reemitir historico.
+            self._last_ts = max(self._last_ts, max(e.ts for e in events))
         return fresh

@@ -80,3 +80,49 @@ def test_timeout_vira_source_unavailable():
     with pytest.raises(SourceUnavailable):
         EventLogBlockSource(run=boom).new_events()
 
+
+def _proc(returncode=0, stdout="", stderr=""):
+    # fake SimpleNamespace: basta expor returncode/stdout/stderr como wevtutil.
+    from types import SimpleNamespace
+    return SimpleNamespace(returncode=returncode, stdout=stdout, stderr=stderr)
+
+
+def _evt_xml(ts):
+    # um <Event> de bloqueio minimo com Application Path (para parse nao descartar)
+    return ("<Events><Event><System>"
+            f"<EventID>2006</EventID><TimeCreated SystemTime=\"{ts}\"/>"
+            "</System><EventData>"
+            "<Data Name=\"Application Path\">C:\\x\\a.exe</Data>"
+            "<Data Name=\"Protocol\">6</Data>"
+            "<Data Name=\"Source Address\">203.0.113.9</Data>"
+            "<Data Name=\"Destination Address\">192.168.0.10</Data>"
+            "<Data Name=\"Destination Port\">443</Data>"
+            "</EventData></Event></Events>")
+
+
+def test_rc_diferente_dezero_declara_indisponivel():
+    from aegis.system.eventlog import EventLogBlockSource
+    # rc != 0 (canal ausente/acesso negado) deve declarar, nunca fingir ok vazio.
+    src = EventLogBlockSource(run=lambda *a, **k: _proc(
+        returncode=15000, stdout="", stderr="canal invalido"))
+    with pytest.raises(SourceUnavailable) as ei:
+        src.new_events()
+    assert "15000" in str(ei.value)
+
+
+def test_last_ts_monotonicos():
+    from aegis.system.eventlog import EventLogBlockSource
+    # 2a leva com max ts MAIS ANTIGO (relogio em retrocesso): nao pode
+    # reemitir historico nem regredir _last_ts.
+    batches = [
+        _proc(stdout=_evt_xml("2026-01-02T00:00:00")),  # mais novo
+        _proc(stdout=_evt_xml("2026-01-01T00:00:00")),  # mais antigo
+    ]
+    src = EventLogBlockSource(run=lambda *a, **k: batches.pop(0))
+    first = src.new_events()
+    assert len(first) == 1
+    high = src._last_ts
+    second = src.new_events()
+    assert second == []
+    assert src._last_ts == high
+
