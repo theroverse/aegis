@@ -14,6 +14,14 @@ DEFAULTS: Dict[str, Any] = {
         "anel_tamanho": 500,
     },
     "ia": {"prompt_max_regras": 3},
+    # Validacao na maquina (Win11, 2026-09-23): o canal WFA/Firewall existe e tem
+    # eventos, mas nenhum e de "packet drop" — os IDs presentes (2010, 2051, 2052,
+    # 2059, 2083, 2087, 2097, 2099) e as 111 templates do provedor (2000-2110)
+    # sao todos de regra/config/perfil; 2004-2007 especificamente sao "rule
+    # added/updated/deleted" (RuleId/RuleName/ModifyingUser), NAO drops. Drops do
+    # WFP vao para o log de Seguranca (5152/5153), fora do escopo desta fonte.
+    # Logo: lista vazia = sem filtro de EventID; o pfirewall.log segue como a
+    # fonte primaria de bloqueios da v0.
     "firewall": {"bloqueios_event_ids": []},
 }
 
