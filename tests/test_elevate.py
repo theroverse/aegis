@@ -61,3 +61,26 @@ def test_result_podre_vira_motivo(tmp_path, monkeypatch):
     res = run({"op": "noop"})
     assert res["ok"] is False
     assert "ilegivel" in res["motivo"]
+
+
+def test_sucesso_do_helper_e_repassado_como_esta(tmp_path, monkeypatch):
+    # Passthrough: payload ok do helper volta intacto — nenhuma chave
+    # inventada nem motivo colado no sucesso.
+    def write_ok(request_path, result_path):
+        Path(result_path).write_text(json.dumps({"ok": True}),
+                                     encoding="utf-8")
+    monkeypatch.setattr(elevate, "_spawn", write_ok)
+    run = ElevatedRunner(Path("x.exe"), tmp_path)
+    assert run({"op": "noop"}) == {"ok": True}
+
+
+def test_aspas_simples_no_caminho_sao_escapadas():
+    # Apostrofo no caminho (C:\Users\o'brien\...) nao pode quebrar a string
+    # cotada do PowerShell: aspas viram duplas e o comando segue RunAs -Wait.
+    cmd = build_elevation_command(
+        Path("C:\\Users\\o'brien\\.aegis\\AegisApply.exe"),
+        Path("C:\\Users\\o'brien\\.aegis\\req-1.json"),
+        Path("C:\\Users\\o'brien\\.aegis\\res-1.json"))
+    joined = " ".join(cmd)
+    assert "o''brien" in joined
+    assert "-Verb RunAs" in joined

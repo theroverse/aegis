@@ -15,10 +15,18 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 
+def _q(p: Path) -> str:
+    # Escapamento PS de string com aspas simples: ' -> ''.
+    # Sem isso, caminho com apostrofo (C:\Users\o'brien\...) quebra o parse
+    # do PowerShell, nenhum result e escrito e o motor rotula mal a falha
+    # dura como "UAC cancelado".
+    return str(p).replace("'", "''")
+
+
 def build_elevation_command(helper_exe: Path, request_path: Path,
                             result_path: Path) -> List[str]:
-    ps = (f"Start-Process -FilePath '{helper_exe}' "
-          f"-ArgumentList '{request_path}','{result_path}' "
+    ps = (f"Start-Process -FilePath '{_q(helper_exe)}' "
+          f"-ArgumentList '{_q(request_path)}','{_q(result_path)}' "
           "-Verb RunAs -Wait")
     return ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
 
@@ -42,6 +50,11 @@ class ElevatedRunner:
         # (request_path, result_path). No caminho real o helper da instancia
         # e passado junto; quando _spawn foi substituido, chamamos o fake com
         # o contrato de dois argumentos.
+        # Aridades distintas: o _spawn REAL recebe 3 args (helper, req, res);
+        # o fake substituido recebe 2 args (req, res) pelo contrato do plano.
+        # Cuidado: um fake permissivo de 3 args com parametro defaultado
+        # (ex.: lambda req, res, helper=None) passa nos testes mas seria
+        # mal roteado aqui — o fake deve aceitar exatamente (req, res).
         if _spawn is _SPAWN_REAL:
             _spawn(self.helper, req, res)
         else:

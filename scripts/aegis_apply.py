@@ -45,8 +45,14 @@ def main(argv):
         if dropped_old:
             motivo += " — regra antiga removida pelo replace e nao recriada"
         out = {"ok": False, "motivo": motivo}
-    with open(result_path, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(out, fh, ensure_ascii=False)
+    try:
+        with open(result_path, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(out, fh, ensure_ascii=False)
+    except Exception as exc:  # melhor esforco: nao ha canal de volta ao motor
+        # sem result escrito o motor rotula "UAC cancelado" — ecoa no stderr
+        # para o log do Start-Process ao menos dizer o que foi.
+        print(f"aegis_apply: falha ao escrever result: {type(exc).__name__}: "
+              f"{exc}", file=sys.stderr)
     return 0 if out["ok"] else 1
 
 
