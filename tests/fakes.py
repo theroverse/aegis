@@ -4,12 +4,7 @@ from typing import Dict, List, Optional
 
 from aegis.firewall import RuleInfo
 from aegis.models import RuleSpec
-
-try:  # sources.py chega no Task 5; fakes e compartilhado
-    from aegis.sources import SourceUnavailable
-except ModuleNotFoundError:
-    class SourceUnavailable(Exception):
-        pass
+from aegis.sources import SourceUnavailable
 
 
 class FakeFirewallProvider:
