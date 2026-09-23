@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import List, Optional
 
@@ -18,9 +19,29 @@ _TRANSICOES = {
 class DraftStore:
     def __init__(self, path: Path):
         self.path = Path(path)
-        payload = read_json_lenient(self.path, fallback={"counter": 0, "drafts": []})
-        self._counter = int(payload.get("counter", 0))
-        self._drafts: List[RuleDraft] = [self._from_dict(d) for d in payload.get("drafts", [])]
+        payload = read_json_lenient(self.path, fallback=None)
+        # JSON valido-mas-torto nao pode inutilizar a fila: degrada a vazio.
+        if not isinstance(payload, dict):
+            payload = {}
+        try:
+            self._counter = int(payload.get("counter", 0))
+        except (TypeError, ValueError):
+            self._counter = 0
+        raw = payload.get("drafts", [])
+        if not isinstance(raw, list):
+            raw = []
+        self._drafts: List[RuleDraft] = []
+        for d in raw:
+            try:
+                self._drafts.append(self._from_dict(d))
+            except (KeyError, TypeError, ValueError):
+                # entrada podre e descartada; fila sobrevive
+                continue
+        # nunca reusar id: o counter fica pelo menos no maior dNNN existente
+        for d in self._drafts:
+            m = re.fullmatch(r"d(\d+)", d.draft_id or "")
+            if m:
+                self._counter = max(self._counter, int(m.group(1)))
 
     @staticmethod
     def _to_dict(d: RuleDraft) -> dict:
@@ -37,6 +58,7 @@ class DraftStore:
                          draft_id=d.get("draft_id", ""))
 
     def _persist(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         write_json_atomic(self.path, {"counter": self._counter,
                                       "drafts": [self._to_dict(d) for d in self._drafts]})
 
