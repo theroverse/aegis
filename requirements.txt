@@ -1,0 +1,4 @@
+# psutil: mesma justificativa do Sentinel (dependencia de runtime para
+# conexoes ao vivo; instalada pelo build, jamais pedida ao usuario).
+psutil
+comtypes; sys_platform == "win32"
