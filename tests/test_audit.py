@@ -24,3 +24,11 @@ def test_read_tail_so_as_ultimas_e_append_preserva(tmp_path):
     tail = log.read(tail=2)
     assert len(tail) == 2 and "alvo-3" in tail[0] and "alvo-4" in tail[1]
     assert len(log.read()) == 5  # append-only: nada e reescrito
+
+
+def test_record_sanitiza_quebras_de_linha(tmp_path):
+    log = AuditLog(tmp_path / "audit.log")
+    log.record("a", "b", "falha\nstack")
+    lines = log.read()
+    assert len(lines) == 1  # uma linha por registro, mesmo com \n no campo
+    assert "falha / stack" in lines[0]
