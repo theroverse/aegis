@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Testes / cobertura
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Estado do proprio Aegis quando rodado dentro deste repo (prompts, auditoria, config)
+.aegis/
+
+# Artefatos de build (PyInstaller)
+.build/
+dist/
+*.spec.bak
+
+# Editor / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
