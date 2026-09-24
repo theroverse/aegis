@@ -54,7 +54,7 @@
       <div class="cols">
         <div class="card">
           <header><span class="live"></span> Conexões ativas e escutando</header>
-          <table><thead><tr><th>Processo</th><th>Remoto</th><th>Protocolo</th><th>Estado</th></tr></thead>
+          <table class="conns"><thead><tr><th>Processo</th><th>Remoto</th><th>Protocolo</th><th>Estado</th></tr></thead>
           <tbody id="tbConexoes"></tbody></table>
         </div>
         <div class="card">
@@ -102,21 +102,23 @@
         <div class="card">
           <header style="color:var(--teal)">✓ O que o Aegis faz</header>
           <ul class="list">
-            <li><span class="y">✓</span>Lê regras, conexões e bloqueios <b>como usuário normal</b>, sem admin</li>
-            <li><span class="y">✓</span>Explica <b>o porquê</b> de cada bloqueio em linguagem humana</li>
-            <li><span class="y">✓</span>Mostra <b>exatamente a linha</b> que será escrita antes do UAC</li>
-            <li><span class="y">✓</span>Confere cada regra aplicada relendo o firewall</li>
-            <li><span class="y">✓</span>Registra tudo num <b>log de auditoria local</b> legível aqui embaixo</li>
+            <!-- o li e flex: o texto inteiro vai num span senao cada <b>
+                vira uma coluna flex propria e a frase esmiuca -->
+            <li><span class="y">✓</span><span>Lê regras, conexões e bloqueios <b>como usuário normal</b>, sem admin</span></li>
+            <li><span class="y">✓</span><span>Explica <b>o porquê</b> de cada bloqueio em linguagem humana</span></li>
+            <li><span class="y">✓</span><span>Mostra <b>exatamente a linha</b> que será escrita antes do UAC</span></li>
+            <li><span class="y">✓</span><span>Confere cada regra aplicada relendo o firewall</span></li>
+            <li><span class="y">✓</span><span>Registra tudo num <b>log de auditoria local</b> legível aqui embaixo</span></li>
           </ul>
         </div>
         <div class="card">
-          <header style="color:var(--red)">✗ O que o Aegis nunca faz</header>
+          <header style="color:var(--red-text)">✗ O que o Aegis nunca faz</header>
           <ul class="list">
-            <li><span class="n">✗</span>Bloqueia ou libera algo <b>por conta própria</b> — não existe modo "auto"</li>
-            <li><span class="n">✗</span>Apaga arquivos, quarentena ou "protege você no susto"</li>
-            <li><span class="n">✗</span>Sobrescreve regra do sistema ou de antivírus sem mostrar o conflito</li>
-            <li><span class="n">✗</span>Envia dado algum para a nuvem — o motor de IA é local/seu</li>
-            <li><span class="n">✗</span>Fica residente elevado — só o helper pontual pede UAC</li>
+            <li><span class="n">✗</span><span>Bloqueia ou libera algo <b>por conta própria</b> — não existe modo "auto"</span></li>
+            <li><span class="n">✗</span><span>Apaga arquivos, quarentena ou "protege você no susto"</span></li>
+            <li><span class="n">✗</span><span>Sobrescreve regra do sistema ou de antivírus sem mostrar o conflito</span></li>
+            <li><span class="n">✗</span><span>Envia dado algum para a nuvem — o motor de IA é local/seu</span></li>
+            <li><span class="n">✗</span><span>Fica residente elevado — só o helper pontual pede UAC</span></li>
           </ul>
         </div>
       </div>

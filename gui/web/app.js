@@ -85,13 +85,15 @@ async function renderPainel() {
   chipEstado("chipConn", s.estado_conexoes, "conexões", "2s");
   chipEstado("chipLog", s.estado_bloqueios, "log de bloqueios", "5s");
   const aviso = $("logNotice");
-  if (s.estado_bloqueios.estado !== "ok") {
+  // o banner obedece a CONFIG REAL do log (registro, via ponte), nao a
+  // existencia do pfirewall.log: o Windows so cria o arquivo na primeira
+  // linha — confundir os dois mantinha o aviso no ar depois de ativar.
+  if (s.log_bloqueios === false) {
     aviso.hidden = false;
     $("logNoticeTxt").innerHTML =
       "O <b>log de bloqueios do firewall</b> está desativado — sem ele eu vejo as " +
       "conexões, mas não os pacotes barrados. <b>Nada muda sem você decidir:</b> " +
-      "ativar escreve uma configuração do log (requer UAC). <span style='color:var(--muted)'>" +
-      "(" + esc(s.estado_bloqueios.detalhe) + ")</span>";
+      "ativar escreve uma configuração do log (requer UAC).";
   } else { aviso.hidden = true; }
 
   const tc = $("tbConexoes"); tc.replaceChildren();
@@ -108,7 +110,10 @@ async function renderPainel() {
 
   const fb = $("feedBloqueios"); fb.replaceChildren();
   $("blockSrc").textContent = "fonte: event log + pfirewall.log · 5s";
-  if (!s.bloqueios.length) fb.appendChild(el("div", "empty", "nenhum bloqueio no anel — lembre-se do log desativado"));
+  if (!s.bloqueios.length) fb.appendChild(el("div", "empty",
+    s.log_bloqueios === false
+      ? "nenhum bloqueio no anel — o log ainda está desativado"
+      : "nenhum bloqueio no anel — o log registra daqui pra frente"));
   s.bloqueios.slice(0, 40).forEach(b => {
     const linha = el("div", "ev");
     const nome = b.program ? b.program.split("\\").pop() : (b.src !== "-" ? b.src : "origem desconhecida");
@@ -187,7 +192,7 @@ async function renderRegras() {
     tr.appendChild(el("td", "", (r.profiles || []).map(p =>
       `<span class="tag ${p === "public" ? "pub" : "priv"}">${esc(p.toUpperCase())}</span>`).join(" ")));
     tr.appendChild(el("td", "", r.aegis ? '<span class="tag pub">AEGIS</span>'
-      : '<span style="font-size:9.5px;color:#4A5260;font-family:var(--mono)">SO</span>'));
+      : '<span class="solinha">SO</span>'));
     const acts = el("td", "acts");
     if (r.aegis) {
       const rm = el("span", "mini", "remover"); rm.onclick = () => remover(r); acts.appendChild(rm);
@@ -237,7 +242,7 @@ $("btnAtivarLog").onclick = () => {
   modal("Ativar log de bloqueios (UAC)", corpo, [
     ["Ativar (UAC)", "amber", async () => {
       const res = await api("enable_firewall_log");
-      toast(res.ok ? "log ativado — o feed vai povorar nos próximos ciclos"
+      toast(res.ok ? "log ativado — o feed vai povoar nos próximos ciclos"
                    : (res.motivo || "falha"), res.ok ? "ok" : "warn", 8000);
     }],
   ]);

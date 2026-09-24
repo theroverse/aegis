@@ -2,7 +2,8 @@
     --bg:#0B0C0E; --panel:#121417; --panel2:#171A1F; --line:#1F242B;
     --text:#E6E9EF; --muted:#8B94A3;
     --cobalt:#2563EB; --cobalt-hi:#3B82F6; --cobalt-dim:rgba(37,99,235,.14);
-    --teal:#2DD9B9; --amber:#FBBF5B; --red:#E11D29; --magenta:#EC4899;
+    --cobalt-deep:#1D4ED8; --cobalt-text:#60A5FA;
+    --teal:#2DD9B9; --amber:#FBBF5B; --red:#E11D29; --red-text:#F87171; --magenta:#EC4899;
     --mono:ui-monospace,'Cascadia Code',Consolas,monospace;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -16,13 +17,13 @@
   .brand{display:flex;align-items:center;gap:10px;padding:0 8px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
   .shield{width:34px;height:34px;flex:0 0 34px}
   .brand h1{font-size:15px;letter-spacing:.28em;font-weight:700}
-  .brand small{display:block;font-size:9.5px;letter-spacing:.08em;color:var(--muted);font-weight:400;margin-top:2px}
+  .brand small{display:block;font-size:10.5px;letter-spacing:.08em;color:var(--muted);font-weight:400;margin-top:2px}
   .navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;font-size:13.5px;color:var(--muted);cursor:pointer;border:1px solid transparent}
   .navitem svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8}
   .navitem:hover{background:var(--panel2);color:var(--text)}
-  .navitem.active{background:var(--cobalt-dim);color:var(--cobalt-hi);border-color:rgba(37,99,235,.35);font-weight:600}
-  .navitem .badge{margin-left:auto;background:var(--red);color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 7px}
-  .navfoot{margin-top:auto;padding:10px 8px;border-top:1px solid var(--line);font-size:10.5px;color:var(--muted);line-height:1.6;font-family:var(--mono)}
+  .navitem.active{background:var(--cobalt-dim);color:var(--cobalt-text);border-color:rgba(37,99,235,.35);font-weight:600}
+  .navitem .badge{margin-left:auto;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:999px;padding:1px 7px;white-space:nowrap}
+  .navfoot{margin-top:auto;padding:10px 8px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);line-height:1.6;font-family:var(--mono)}
   .navfoot .ok{color:var(--teal)}
   /* ---- main ---- */
   main{flex:1;padding:22px 26px;overflow:hidden}
@@ -32,15 +33,15 @@
   .pagehead h2{font-size:19px;font-weight:650}
   .pagehead .hint{font-size:12px;color:var(--muted)}
   .chips{margin-left:auto;display:flex;gap:8px}
-  .chip{font-size:10.5px;font-family:var(--mono);padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .chip{font-size:11px;font-family:var(--mono);padding:3px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
   .chip.on{color:var(--teal);border-color:rgba(45,217,185,.35)}
   .chip.warn{color:var(--amber);border-color:rgba(251,191,91,.35)}
   .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
   .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-  .stat .label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .stat .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
   .stat .value{font-size:24px;font-weight:700;font-family:var(--mono)}
-  .stat .value small{font-size:11px;color:var(--muted);font-weight:400}
-  .stat.blue .value{color:var(--cobalt-hi)} .stat.red .value{color:var(--red)} .stat.teal .value{color:var(--teal)}
+  .stat .value small{font-size:12px;color:var(--muted);font-weight:400}
+  .stat.blue .value{color:var(--cobalt-hi)} .stat.red .value{color:var(--red-text)} .stat.teal .value{color:var(--teal)}
   .cols{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}
   .cols>*{min-width:0}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -48,26 +49,41 @@
   .live{width:8px;height:8px;border-radius:50%;background:var(--teal);animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,217,185,.5)}70%{box-shadow:0 0 0 7px rgba(45,217,185,0)}}
   table{width:100%;border-collapse:collapse;font-size:12px}
-  th{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 16px;font-weight:600}
-  td{padding:9px 16px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:#C9D1DC;overflow-wrap:anywhere}
+  th{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;padding:8px 16px;font-weight:600}
+  td{padding:9px 16px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11.5px;color:#C9D1DC;overflow-wrap:break-word}
+  /* break-word (nao anywhere): quebra apenas o token maior que a coluna;
+     anywhere deixa o min-content de 1 letra e a tabela esmiuca no meio das
+     palavras ("allo w", "só lei tur a") quando o espaco aperta */
   td.proc{font-family:'Segoe UI',sans-serif;color:var(--text);font-size:12px}
-  .st{font-size:10px;padding:1px 8px;border-radius:999px}
+  .st{font-size:10.5px;padding:1px 8px;border-radius:999px;white-space:nowrap}
   .st.esc{background:rgba(45,217,185,.12);color:var(--teal)}
-  .st.ouv{background:rgba(37,99,235,.14);color:var(--cobalt-hi)}
+  .st.ouv{background:rgba(37,99,235,.14);color:var(--cobalt-text)}
+  /* conexoes: layout fixo em proporcao + piso de largura com rolagem propria
+     do card — abaixo de ~1000px de janela a tabela passa a rolar na
+     horizontal em vez de cortar a coluna ESTADO no meio da borda */
+  .conns{table-layout:fixed;min-width:480px}
+  .card:has(.conns){overflow-x:auto}
+  .conns th,.conns td{padding-left:10px;padding-right:10px}
+  .conns th:nth-child(1),.conns td:nth-child(1){width:26%}
+  .conns th:nth-child(2),.conns td:nth-child(2){width:30%}
+  .conns th:nth-child(3),.conns td:nth-child(3){width:20%}
+  .conns th:nth-child(4),.conns td:nth-child(4){width:24%}
   /* feed de bloqueios */
   .feed{max-height:298px;overflow-y:auto}
-  .ev{display:flex;gap:12px;padding:12px 16px;border-top:1px solid var(--line);align-items:center}
+  .ev{display:flex;gap:12px;padding:12px 16px;border-top:1px solid var(--line);align-items:center;flex-wrap:wrap}
+  /* em janelas estreitas o botao desce de linha junto com o contador; sem
+     wrap ele esmaga o meta a 1 palavra por linha no minimo de 980px */
   .ev:first-child{border-top:0}
   .ev .ico{width:30px;height:30px;flex:0 0 30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px}
   .ev .ico.in{background:rgba(225,29,41,.14);color:var(--red)}
   .ev .ico.out{background:rgba(251,191,91,.12);color:var(--amber)}
-  .ev .meta{flex:1;min-width:0}
+  .ev .meta{flex:1 1 160px;min-width:0}
   .ev .meta b{font-size:12.5px;display:block}
-  .ev .meta span{font-size:10.5px;color:var(--muted);font-family:var(--mono)}
-  .ev .cnt{font-size:10px;color:var(--muted);font-family:var(--mono)}
+  .ev .meta span{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .ev .cnt{font-size:11px;color:var(--muted);font-family:var(--mono)}
   .btn{border:0;border-radius:8px;font-size:11.5px;font-weight:600;padding:7px 12px;cursor:pointer;white-space:nowrap}
   .btn.primary{background:var(--cobalt);color:#fff}
-  .btn.primary:hover{background:var(--cobalt-hi)}
+  .btn.primary:hover{background:var(--cobalt-deep)}
   .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
   .btn.ghost:hover{color:var(--text);border-color:#39424E}
   .btn.danger{background:rgba(225,29,41,.12);color:#FF6B70;border:1px solid rgba(225,29,41,.35)}
@@ -82,17 +98,19 @@
   .tog::after{content:"";position:absolute;right:2px;top:2px;width:12px;height:12px;border-radius:50%;background:#fff}
   .tog.off{background:#39424E}.tog.off::after{left:2px;right:auto}
   .acts{display:flex;gap:6px}
-  .mini{font-size:10.5px;color:var(--muted);cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+  .mini{font-size:11px;color:var(--muted);cursor:pointer;border:1px solid var(--line);border-radius:6px;padding:3px 8px;white-space:nowrap}
   .mini:hover{color:var(--text)}
   .regraname{font-family:'Segoe UI',sans-serif;font-size:12px;color:var(--text)}
-  .tag{font-size:9.5px;padding:1px 7px;border-radius:4px;font-family:var(--mono)}
+  .tag{font-size:10.5px;padding:1px 7px;border-radius:4px;font-family:var(--mono);white-space:nowrap}
   .tag.allow{background:rgba(45,217,185,.12);color:var(--teal)}
-  .tag.deny{background:rgba(225,29,41,.12);color:var(--red)}
-  .tag.priv{background:rgba(37,99,235,.14);color:var(--cobalt-hi)}
+  .tag.deny{background:rgba(225,29,41,.12);color:var(--red-text)}
+  .tag.priv{background:rgba(37,99,235,.14);color:var(--cobalt-text)}
   .tag.pub{background:rgba(251,191,91,.12);color:var(--amber)}
+  /* rotulo "SO" (regra do sistema): cinza legivel, nao a cor fantasma de antes */
+  .solinha{font-size:11px;color:var(--muted);font-family:var(--mono)}
   /* revisão */
   .draft{border:1px solid rgba(37,99,235,.4);border-radius:10px;background:linear-gradient(180deg,rgba(37,99,235,.07),transparent 40%),var(--panel);padding:18px 20px;margin-bottom:14px}
-  .draft .src{display:flex;align-items:center;gap:8px;font-size:10.5px;color:var(--cobalt-hi);font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+  .draft .src{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--cobalt-text);font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
   .draft .src i{width:6px;height:6px;border-radius:50%;background:var(--cobalt-hi)}
   .draft h3{font-size:14.5px;margin-bottom:6px}
   .draft .why{font-size:12.5px;color:#AEB7C4;line-height:1.6;margin-bottom:14px}
@@ -100,15 +118,20 @@
   .spec em{color:var(--cobalt-hi);font-style:normal}
   .spec b{color:var(--teal);font-weight:600}
   .draft .row{display:flex;gap:10px;align-items:center}
-  .confia{font-size:11px;color:var(--muted);margin-right:auto}
+  .confia{font-size:12px;color:var(--muted);margin-right:auto}
   .confia b{color:var(--amber)}
   .done{opacity:.55;border-color:var(--line);background:var(--panel)}
   /* transparencia */
   .duo{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
   .list{padding:6px 0}
   .list li{list-style:none;display:flex;gap:10px;padding:8px 16px;font-size:12.5px;color:#C9D1DC;line-height:1.5}
-  .list li .y{color:var(--teal);font-weight:700}.list li .n{color:var(--red);font-weight:700}
+  .list li .y{color:var(--teal);font-weight:700}.list li .n{color:var(--red-text);font-weight:700}
   .audit td{font-size:11px}
+  /* QUANDO/ACAO/ALVO sao tokens unicos (timestamp, log.ativacao, pfirewall.log):
+     nunca se partem; quem cede espaco e o RESULTADO, que e prosa */
+  .audit th:first-child,.audit td:first-child,
+  .audit th:nth-child(2),.audit td:nth-child(2),
+  .audit th:nth-child(3),.audit td:nth-child(3){white-space:nowrap}
   .res-ok{color:var(--teal)} .res-warn{color:var(--amber)}
   .notice{display:flex;gap:12px;align-items:center;background:rgba(251,191,91,.06);border:1px solid rgba(251,191,91,.3);border-radius:10px;padding:14px 16px;margin-bottom:14px;font-size:12.5px;color:#D8DEE8}
   .notice b{color:var(--amber)}
@@ -116,7 +139,7 @@
   .uac-pop b{color:var(--cobalt-hi)}
 
 /* ---- incrementos do app real (fora do mock estatico) ---- */
-.srcline{margin-left:auto;font-size:10px;color:var(--muted);font-weight:400}
+.srcline{margin-left:auto;font-size:11px;color:var(--muted);font-weight:400}
 .empty{padding:18px 16px;color:var(--muted);font-size:12px;font-family:var(--mono)}
 .form{background:var(--panel2);border:1px solid var(--line);border-radius:8px;
       color:var(--text);padding:9px 12px;font-size:12.5px;width:100%;
@@ -141,6 +164,6 @@ label.campo{display:block;font-size:11px;color:var(--muted);margin:10px 0 4px;
        box-shadow:0 12px 40px rgba(0,0,0,.5);line-height:1.5}
 .toast.ok{border-color:rgba(45,217,185,.4)} .toast.err{border-color:rgba(225,29,41,.45)}
 .toast.warn{border-color:rgba(251,191,91,.45)}
-.confia b.alta{color:var(--teal)} .confia b.media{color:var(--amber)} .confia b.baixa{color:var(--red)}
+.confia b.alta{color:var(--teal)} .confia b.media{color:var(--amber)} .confia b.baixa{color:var(--red-text)}
 .draft h3 code{font-size:12px;color:var(--muted);font-weight:400}
 .feed .ev button+.button-sep{width:6px;display:inline-block}
