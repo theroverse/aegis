@@ -71,6 +71,16 @@ def test_status_devolve_formas_json_seguras(api):
     assert s["sessao"] == "sem admin"
 
 
+def test_status_declara_saude_real_do_log(api):
+    # Contrato da ponte para o banner JS: log_bloqueios e booleano e vem da
+    # config real (registro), nao da existencia do pfirewall.log. Sem
+    # log_state no motor, o conservador e False — banner fica visivel.
+    s = _jsonavel(api.status())
+    assert s["log_bloqueios"] is False
+    api._engine.log_state = type("L", (), {"enabled": lambda self: True})()
+    assert _jsonavel(api.status())["log_bloqueios"] is True
+
+
 def test_rules_filtra_e_marca_o_que_e_do_aegis(api):
     api._engine.provider.inject(RuleInfo(
         name="Aegis · steam udp", direction="out", action="allow",

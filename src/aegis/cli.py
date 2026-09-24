@@ -23,6 +23,9 @@ def _offline_engine(entry: Path):
     return Engine(provider=prov, conn_source=FakeConnSource(),
                   block_source=FakeBlockSource(batches=[]),
                   runner=lambda req: {"ok": False, "motivo": "offline"},
+                  # offline nunca toca o registro: log_state falso declara
+                  # False e o banner da ponte continua visivel e honesto
+                  log_state=type("L", (), {"enabled": lambda self: False})(),
                   anchor=entry)
 
 
@@ -40,9 +43,12 @@ def _resolver_target(entry: Path) -> tuple[Path, list[str]]:
 
 
 def _windows_engine(entry: Path):
+    from aegis.sources import MergedBlockSource
     from aegis.system.connections import active_connections
+    from aegis.system.elevate import ElevatedRunner
     from aegis.system.eventlog import EventLogBlockSource
     from aegis.system.firewall_api import ComFirewallProvider
+    from aegis.system.logstate import FirewallLogState
     from aegis.system.pfirewall import PfirewallSource
     from aegis.engine import Engine
     from aegis.settings import Settings, state_dir
@@ -54,17 +60,16 @@ def _windows_engine(entry: Path):
         event_ids=settings.get("firewall.bloqueios_event_ids") or ())
     offline_log = PfirewallSource(
         Path("C:/Windows/System32/LogFiles/Firewall/pfirewall.log"))
-
-    class _Composite:
-        def new_events(self):
-            return list(block.new_events()) + list(offline_log.new_events())
-
-    from aegis.system.elevate import ElevatedRunner
     target = _resolver_target(entry)
     return Engine(provider=prov,
                   conn_source=type("C", (), {"connections": lambda self: active_connections()})(),
-                  block_source=_Composite(),
+                  # merge honrado: pfirewall.log ausente nao derruba mais o
+                  # lote do event log ja consumido (regressao antiga)
+                  block_source=MergedBlockSource([block, offline_log]),
                   runner=ElevatedRunner(target, st),
+                  # saude do log vem da config real (registro HKLM), lida
+                  # sem admin — nao da existencia do arquivo
+                  log_state=FirewallLogState(),
                   anchor=entry, settings=settings)
 
 

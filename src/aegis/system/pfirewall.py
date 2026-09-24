@@ -59,7 +59,9 @@ class PfirewallSource:
 
     def new_events(self) -> List[BlockEvent]:
         if not self.path.exists():
-            raise SourceUnavailable("pfirewall.log nao existe (log desativado)")
+            # ausencia nao prova desativacao: o Windows so cria o arquivo na
+            # primeira linha logada — a saude real do log vem do registro.
+            raise SourceUnavailable("pfirewall.log ainda nao existe")
         if self._offset > self.path.stat().st_size:
             # log foi limpinado/rotacionado: reler do inicio, nunca ficar cego em silencio
             self._offset = 0

@@ -83,5 +83,9 @@ def test_programa_com_espacos_reconstruido():
 
 
 def test_source_unavailable_sem_arquivo(tmp_path: Path):
-    with pytest.raises(SourceUnavailable):
+    # a ausencia do arquivo NAO prova desativacao: o Windows so cria o
+    # pfirewall.log na primeira linha registrada. A mensagem nao pode
+    # afirmar o que a fonte nao sabe (saude do log vem do registro).
+    with pytest.raises(SourceUnavailable) as exc:
         PfirewallSource(tmp_path / "nao-existe.log").new_events()
+    assert str(exc.value) == "pfirewall.log ainda nao existe"

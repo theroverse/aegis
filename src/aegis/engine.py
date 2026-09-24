@@ -15,11 +15,15 @@ from aegis.settings import Settings, state_dir
 
 class Engine:
     def __init__(self, provider, conn_source, block_source, runner,
-                 anchor: Path, settings: Optional[Settings] = None):
+                 anchor: Path, settings: Optional[Settings] = None,
+                 log_state=None):
         st = state_dir(anchor)
         self.settings = settings or Settings(st / "config.json")
         self.audit = AuditLog(st / "audit.log")
         self.provider = provider
+        # saude real do log de bloqueios (config do registro), injetada pela
+        # cli; None = desconhecida, e a ponte declara False (conservador).
+        self.log_state = log_state
         self.drafts = DraftStore(st / "drafts.json")
         self.monitor = Monitor(
             conn_source, block_source,

@@ -51,6 +51,10 @@ class AegisApi:
             "estado_bloqueios": self._estado(snap["estado_bloqueios"]),
             "revisoes_pendentes": [self._draft(d)
                                    for d in self._engine.drafts.all("pendente")],
+            # ponte para o banner JS: booleano da CONFIG real (registro),
+            # nunca da existencia do pfirewall.log; sem log_state -> False.
+            "log_bloqueios": bool(self._engine.log_state.enabled()
+                                  if self._engine.log_state else False),
             "sessao": "sem admin",
         }
 
