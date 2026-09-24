@@ -22,15 +22,39 @@ New-Item -ItemType Directory -Force -Path $OutDir, $Work | Out-Null
 # decisao da Task 0). PyInstaller NAO vai para o runtime; so para o build.
 # Padrao de splatting limpo (PS 5.1): $PyCmd e o executavel, $PyPre os
 # prefixos de argumento; cada chamada monta um array unico e faz & $PyCmd $args.
+#
+# Sob $ErrorActionPreference='Stop' uma chamada nativa que falha LANCA
+# (CommandNotFoundException / NativeCommandError no stderr) ANTES de lermos
+# $LASTEXITCODE, o que deixaria o fallback py -3.13 inalcanavel. Por isso a
+# sonda e um helper: gate por Get-Command + try/catch com os fluxos mesclados
+# (*>&1), lendo o codigo de saida real no caminho de sucesso. O EAP e rebaixado
+# para 'Continue' so dentro da sonda, para ruido no stderr de um import bom nao
+# fingir falha; o try/catch cobre comando ausente / erro terminante.
+function Test-PyImport {
+    param([string]$Exe, [string[]]$PreArgs = @(), [string]$Code)
+    if (-not (Get-Command $Exe -ErrorAction SilentlyContinue)) { return $false }
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $Exe ($PreArgs + @('-c', $Code)) *>&1 | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 $PyCmd = 'python'
 $PyPre = @()
-& python -c "import webview, PyInstaller" 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-PyImport -Exe 'python' -Code 'import webview, PyInstaller')) {
     $PyCmd = 'py'
     $PyPre = @('-3.13')
-    & py -3.13 -c "import webview" 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "pywebview ausente no py -3.13: rode os passos da Task 0 (pip install pywebview pythonnet pyinstaller)" }
+    if (-not (Test-PyImport -Exe 'py' -PreArgs @('-3.13') -Code 'import webview')) {
+        throw "pywebview ausente no py -3.13: rode os passos da Task 0 (pip install pywebview pythonnet pyinstaller)"
+    }
     & $PyCmd ($PyPre + @('-m', 'pip', 'install', '--quiet', 'pyinstaller'))
+    if ($LASTEXITCODE -ne 0) { throw "falha ao instalar pyinstaller no 3.13 (pip exit $LASTEXITCODE)" }
 }
 
 $icon = Join-Path $Root 'gui\Aegis.ico'
@@ -70,12 +94,24 @@ if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou no AegisApply.exe" }
 # PODER VER o JSON do status real e conferir o exit code. Leitura pura, sem UAC.
 Write-Host "`nSmoke: dist\Aegis.exe --cli status (leitura real, sem elevacao)" -ForegroundColor Cyan
 $exe = Join-Path $OutDir 'Aegis.exe'
-$smokeOut = Join-Path $env:TEMP 'aegis_smoke_status.json'
+$smokeOut = Join-Path $env:TEMP "aegis_smoke_$PID.json"
 if (Test-Path $smokeOut) { Remove-Item $smokeOut -Force }
-$proc = Start-Process -FilePath $exe -ArgumentList '--cli', 'status' `
-    -NoNewWindow -Wait -PassThru -RedirectStandardOutput $smokeOut
-if ($proc.ExitCode -ne 0) { throw "Aegis.exe nao respondeu ao smoke de leitura (exit $($proc.ExitCode))" }
+# Start-Process -Wait nao aceita teto de tempo; PassThru + WaitForExit(ms) da o
+# timeout de seguranca e so DEPOIS lemos ExitCode. Nome com $PID evita
+# choque/lixo entre execucoes concorrentes.
+#
+# Nuance PS 5.1: sem -Wait, o Process de -PassThru so popula .ExitCode se
+# EnableRaisingEvents ligar ANTES do termino (sem isso .ExitCode e $null e
+# `$null -ne 0` da False -- a assercao de exit code viraria decorativa). Por
+# isso ligamos na sequencia e guardamos contra $null explicito.
+$p = Start-Process -FilePath $exe -ArgumentList '--cli', 'status' `
+    -NoNewWindow -PassThru -RedirectStandardOutput $smokeOut
+$p.EnableRaisingEvents = $true
+if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "smoke do Aegis.exe excedeu 120s" }
+if ($null -eq $p.ExitCode) { throw "smoke do Aegis.exe sem ExitCode legivel" }
+if ($p.ExitCode -ne 0) { throw "Aegis.exe nao respondeu ao smoke de leitura (exit $($p.ExitCode))" }
 if (-not (Test-Path $smokeOut) -or (Get-Item $smokeOut).Length -eq 0) { throw "Aegis.exe nao imprimiu status no smoke" }
 Get-Content $smokeOut
+Remove-Item $smokeOut -ErrorAction SilentlyContinue
 Write-Host "`nOK: dist\Aegis.exe + dist\AegisApply.exe" -ForegroundColor Green
 

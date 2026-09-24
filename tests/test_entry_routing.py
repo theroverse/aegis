@@ -44,3 +44,18 @@ def test_helper_dev_e_o_script_when_sem_exe(tmp_path, monkeypatch):
     from aegis.cli import _resolver_helper
     h = _resolver_helper(ROOT / "aegis.py")
     assert h.name == "aegis_apply.py" and h.parent.name == "scripts"
+
+
+def test_exe_entry_congelado_usa_o_mesmo_dispatch_da_fonte():
+    # Guarda anti-drift: scripts/aegis_exe.py (compilado no Aegis.exe) e uma
+    # delegacao pura para aegis.entry.dispatch -- a MESMA fonte de verdade do
+    # entry da fonte. Carregamos o corpo do modulo (seguro: tudo util esta fora
+    # do bloco __main__) e pinamos a identidade do objeto. Se alguem duplicar /
+    # bifurcar a logica de dispatch dentro do script, `is` quebra o teste.
+    import aegis.entry
+    spec = importlib.util.spec_from_file_location(
+        "aegis_exe_entry", ROOT / "scripts" / "aegis_exe.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.dispatch is aegis.entry.dispatch
