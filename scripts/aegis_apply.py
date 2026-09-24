@@ -9,6 +9,8 @@ o resultado. Qualquer falha vira motivo literal no result — nunca silencio.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -42,6 +44,24 @@ def main(argv):
             rule = provider.raw_policy().Rules.Item(req["name"])
             rule.Enabled = bool(req["enabled"])
             out = {"ok": True}
+        elif req["op"] == "enable_firewall_log":
+            # o log de bloqueios do pfirewall.log vem DESLIGADO no Windows: sem
+            # isto o monitor nao ve nada. netsh em vez de COM porque a chave de
+            # log so aparece no shell; escreve config de firewall, entao so roda
+            # aqui, sob UAC visivel, com o motivo literal de volta ao motor.
+            log_path = os.path.expandvars(
+                "%windir%\\system32\\LogFiles\\Firewall\\pfirewall.log")
+            r = subprocess.run(
+                ["netsh", "advfirewall", "set", "allprofiles", "logging",
+                 "allowed=disable", "blocked=enable",
+                 f"logfilename={log_path}"],
+                capture_output=True, text=True, timeout=60)
+            if r.returncode == 0:
+                out = {"ok": True}
+            else:
+                saida = " / ".join((r.stderr or r.stdout or "").splitlines())
+                out = {"ok": False,
+                       "motivo": f"netsh rc={r.returncode}: {saida[:200]}"}
         else:
             out = {"ok": False, "motivo": f"op desconhecido: {req['op']}"}
     except Exception as exc:  # erro literal, nunca silencioso

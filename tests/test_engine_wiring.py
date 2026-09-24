@@ -116,3 +116,36 @@ def test_approve_de_rascunho_terminal_devolve_motivo_sem_traceback(tmp_path):
     assert "terminal" in res["motivo"] and "rejeitado" in res["motivo"]
     assert eng.drafts.get(draft_id).status == "rejeitado"
     assert len(eng.audit.read()) == audit_before
+
+
+def test_enable_firewall_log_usa_o_runner_e_audita(tmp_path):
+    prov, eng = make_engine(tmp_path)
+    chamadas = []
+
+    def runner(req):
+        chamadas.append(req)
+        return {"ok": True}
+    # o mesmo runner elevado por onde passam add_rule/remove_rule:
+    # ativar o log e escrita no firewall, entao nunca bypassa a porta
+    eng.apply.runner = runner
+    res = eng.enable_firewall_log()
+    assert res["ok"] is True
+    assert chamadas == [{"op": "enable_firewall_log"}]
+    assert any("log.ativacao" in l for l in eng.audit.read())
+
+
+def test_enable_firewall_log_falha_devolve_motivo_literal(tmp_path):
+    # nada de reescrever a recusa: o que o helper devolve chega e fica
+    # registrado exatamente como veio
+    prov = FakeFirewallProvider()
+    eng = Engine(
+        provider=prov, conn_source=FakeConnSource(),
+        block_source=FakeBlockSource(batches=[]),
+        runner=lambda req: {"ok": False,
+                            "motivo": "netsh rc=1: acesso negado"},
+        anchor=tmp_path / "aegis.py")
+    res = eng.enable_firewall_log()
+    assert res["ok"] is False
+    assert res["motivo"] == "netsh rc=1: acesso negado"
+    assert any("log.ativacao" in l and "netsh rc=1: acesso negado" in l
+               for l in eng.audit.read())

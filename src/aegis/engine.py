@@ -72,3 +72,20 @@ class Engine:
         elif result.get("motivo") == "conflito":
             self.drafts.set_status(draft_id, "pendente")
         return result
+
+    def enable_firewall_log(self) -> dict:
+        """Ativa o log do pfirewall.log via helper elevado (netsh). Nunca
+        silencioso: sem UAC aceito, nada muda e o motivo volta literal."""
+        request = {"op": "enable_firewall_log"}
+        try:
+            result = self.apply.runner(request) or {}
+        except Exception as exc:
+            # transporte (spawn/JSON) nao pode furar a promessa de auditoria
+            self.audit.record("log.ativacao", "pfirewall.log",
+                              f"erro interno: {exc}")
+            return {"ok": False, "motivo": f"erro interno: {exc}"}
+        ok = bool(result.get("ok"))
+        self.audit.record("log.ativacao", "pfirewall.log",
+                          "log de bloqueios ativado" if ok
+                          else result.get("motivo", "falha"))
+        return {"ok": ok, "motivo": "" if ok else result.get("motivo", "falha")}
