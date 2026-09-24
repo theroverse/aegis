@@ -81,7 +81,12 @@ class AegisApi:
         """Recebe um BlockEvent (JSON.stringify) e devolve o prompt montado,
         gravado em .aegis/prompts/ (padrao Sentinel: o motor de IA e do
         usuario; o arquivo e o ponto de troca)."""
-        b = json.loads(block_json)
+        try:
+            b = json.loads(block_json)
+        except (json.JSONDecodeError, TypeError, ValueError) as exc:
+            return {"ok": False, "motivo": f"{type(exc).__name__}: {exc}"}
+        if not isinstance(b, dict):
+            return {"ok": False, "motivo": "bloqueio precisa ser um objeto JSON"}
         program = b.get("program") or "?"
         existentes = [r.name for r in self.engine.provider.list_rules()
                       if program != "?" and (r.program or "").lower() == program.lower()]
@@ -104,7 +109,8 @@ class AegisApi:
 
     def ingest_text(self, text: str) -> Dict[str, Any]:
         try:
-            adicionados = self.engine.ingest_ai_response(text)
+            with self._escrita:  # DraftStore nao e thread-safe: worker threads do pywebview
+                adicionados = self.engine.ingest_ai_response(text)
         except AiResponseError as exc:
             return {"ok": False, "motivo": " ; ".join(exc.errors)}
         except Exception as exc:  # literal, nunca mudo
@@ -134,12 +140,13 @@ class AegisApi:
             spec = RuleSpec.from_dict(json.loads(spec_json))
         except (SpecError, ValueError, TypeError, json.JSONDecodeError) as exc:
             return {"ok": False, "motivo": f"{type(exc).__name__}: {exc}"}
-        rascunho = RuleDraft(spec=spec, rationale="criada pelo usuario na aba Regras",
-                             confidence="alta", checked="", origin="manual",
-                             status="pendente", draft_id="")
-        criado = self.engine.drafts.add(rascunho)
-        self.engine.audit.record("rascunho.manual", spec.name, "na fila de revisao")
-        return {"ok": True, "draft": self._draft(criado)}
+        with self._escrita:  # mesma locka do approve: fila nunca sofre dois writers
+            rascunho = RuleDraft(spec=spec, rationale="criada pelo usuario na aba Regras",
+                                 confidence="alta", checked="", origin="manual",
+                                 status="pendente", draft_id="")
+            criado = self.engine.drafts.add(rascunho)
+            self.engine.audit.record("rascunho.manual", spec.name, "na fila de revisao")
+            return {"ok": True, "draft": self._draft(criado)}
 
     # ---------- escritas elevadas ----------
     def remove_rule(self, name: str) -> Dict[str, Any]:

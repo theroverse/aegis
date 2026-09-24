@@ -93,6 +93,57 @@ def test_understand_escreve_prompt_e_devolve_texto(api):
     assert p.parent == api.state / "prompts"
 
 
+def test_understand_com_hostile_devolve_motivo_sem_explodir(api):
+    # Entrada hostil nao pode estourar excecao crua: a ponte sempre devolve
+    # {ok: False, motivo} como os outros metodos.
+    for hostil in ("nao eh json", "null", "5", "[1,2]"):
+        res = _jsonavel(api.understand(hostil))
+        assert res["ok"] is False
+        assert res["motivo"]
+
+
+def test_new_rule_e_ingest_serializam_na_mesma_locka(api, monkeypatch):
+    # DraftStore nao e thread-safe: pywebview chama a ponte de worker threads.
+    # new_rule e ingest_text precisam escrever a fila sob a mesma self._escrita
+    # do approve. Vigiamos drafts.add: duas chamadas simultaneas = corrida.
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    origem = api.engine.drafts.add
+    dentro = []
+    sobreposta = []
+
+    def vigiada(draft):
+        dentro.append(threading.current_thread())
+        if len(dentro) > 1:
+            sobreposta.append(True)
+        time.sleep(0.02)  # janela larga o bastante para expor a corrida
+        try:
+            return origem(draft)
+        finally:
+            dentro.pop()
+
+    monkeypatch.setattr(api.engine.drafts, "add", vigiada)
+    specs = [json.dumps(dict(GOOD_SPEC, name=f"Aegis · lote {i}",
+                             local_ports=str(9000 + i))) for i in range(6)]
+    respostas = [json.dumps([{"rule": dict(GOOD_SPEC, name=f"Aegis · ia {i}",
+                                            protocol="tcp",
+                                            local_ports=str(8000 + i)),
+                              "rationale": "x", "confidence": "media"}])
+                 for i in range(6)]
+    with ThreadPoolExecutor(max_workers=12) as ex:
+        futs = ([ex.submit(api.new_rule, s) for s in specs]
+                + [ex.submit(api.ingest_text, r) for r in respostas])
+        resultados = [_jsonavel(f.result()) for f in futs]
+    assert not sobreposta, "drafts.add chamado por duas threads sem a locka"
+    assert all(r["ok"] is True for r in resultados)
+    fila = _jsonavel(api.drafts())
+    assert len(fila) == 12  # nenhum rascunho perdido
+    ids = [d["draft_id"] for d in fila]
+    assert len(set(ids)) == 12  # nenhum draft_id duplicado
+
+
 def test_ingest_texto_valido_e_motivo_literal_no_invalido(api):
     resposta = json.dumps([{"rule": GOOD_SPEC, "rationale": "porta de escuta",
                             "confidence": "media"}])
