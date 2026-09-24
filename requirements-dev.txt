@@ -1,2 +1,3 @@
 -r requirements.txt
-pytest
+# Licao do Plano A: fixtures da suite usam API do pytest >=7.
+pytest>=7

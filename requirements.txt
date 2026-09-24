@@ -1,4 +1,7 @@
+# Runtime do Aegis: motor + casca GUI (Windows). Politica v2: OSS livre empacotavel.
 # psutil: mesma justificativa do Sentinel (dependencia de runtime para
 # conexoes ao vivo; instalada pelo build, jamais pedida ao usuario).
-psutil
-comtypes; sys_platform == "win32"
+comtypes>=1.4; sys_platform == "win32"
+psutil>=6
+pywebview>=5.1
+pythonnet>=3.0

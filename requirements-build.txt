@@ -1,0 +1,2 @@
+# Ferramental do build single-file (nao vai para o runtime)
+pyinstaller>=6.6
