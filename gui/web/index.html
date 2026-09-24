@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aegis — Escudo de Rede</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="brand">
+      <svg class="shield" viewBox="0 0 24 24"><path d="M12 2l8 3.5v5.2c0 5.1-3.4 8.9-8 11.3-4.6-2.4-8-6.2-8-11.3V5.5L12 2z" fill="none" stroke="#2563EB" stroke-width="1.6"/><path d="M8.3 12.2l2.4 2.4 5-5.3" fill="none" stroke="#3B82F6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div><h1>AEGIS</h1><small>Escudo de rede</small></div>
+    </div>
+    <div class="navitem active" data-p="painel">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="5" rx="1.5"/><rect x="13" y="10" width="8" height="11" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/></svg>
+      Painel
+    </div>
+    <div class="navitem" data-p="regras">
+      <svg viewBox="0 0 24 24"><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+      Regras
+    </div>
+    <div class="navitem" data-p="revisao">
+      <svg viewBox="0 0 24 24"><path d="M9 12l2.5 2.5L16 9"/><circle cx="12" cy="12" r="9"/></svg>
+      Revisão <span class="badge" id="badgeRev" hidden>0</span>
+    </div>
+    <div class="navitem" data-p="transp">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/></svg>
+      Transparência
+    </div>
+    <div class="navfoot">
+      motor <span class="ok" id="footMotor">ativo</span><br>
+      sessão: <span class="ok">sem admin</span><br>
+      escrita: só sob UAC
+    </div>
+  </nav>
+
+  <main>
+    <section class="page show" id="painel">
+      <div class="pagehead">
+        <h2>Painel</h2><span class="hint">tráfego ao vivo da sua máquina</span>
+        <div class="chips"><span class="chip" id="chipConn">conexões</span><span class="chip" id="chipLog">log de bloqueios</span></div>
+      </div>
+      <div class="notice" id="logNotice" hidden>
+        ⚠️ <div id="logNoticeTxt"></div>
+        <button class="btn amber" id="btnAtivarLog">Ativar log</button>
+      </div>
+      <div class="cards3">
+        <div class="stat blue"><div class="label">Conexões vivas</div><div class="value" id="stConexoes">—</div></div>
+        <div class="stat red"><div class="label">Bloqueios no anel</div><div class="value" id="stBloqueios">—</div></div>
+        <div class="stat teal"><div class="label">Regras do Aegis</div><div class="value" id="stAegis">—</div></div>
+      </div>
+      <div class="cols">
+        <div class="card">
+          <header><span class="live"></span> Conexões ativas e escutando</header>
+          <table><thead><tr><th>Processo</th><th>Remoto</th><th>Protocolo</th><th>Estado</th></tr></thead>
+          <tbody id="tbConexoes"></tbody></table>
+        </div>
+        <div class="card">
+          <header>Bloqueios recentes <span class="srcline" id="blockSrc"></span></header>
+          <div class="feed" id="feedBloqueios"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page" id="regras">
+      <div class="pagehead">
+        <h2>Regras</h2><span class="hint">as do Aegis destacadas · nada é aplicado sem seu clique + UAC</span>
+      </div>
+      <div class="toolbar">
+        <input class="search form" id="qRegras" placeholder="buscar por nome ou programa…">
+        <div class="seg" id="segPerfil">
+          <b class="on" data-pf="">Todos</b><b data-pf="domain">Domínio</b><b data-pf="private">Privado</b><b data-pf="public">Público</b>
+        </div>
+        <button class="btn primary" id="btnNovaRegra">+ Nova regra</button>
+      </div>
+      <div class="card">
+        <table><thead><tr><th style="width:26px"></th><th>Regra</th><th>Ação</th><th>Protocolo / porta</th><th>Perfil</th><th>Origem</th><th></th></tr></thead>
+        <tbody id="tbRegras"></tbody></table>
+      </div>
+      <div class="uac-pop">
+        💡 Regras criadas por <b>terceiros ou pelo sistema</b> são sempre <b>mostradas, nunca alteradas silenciosamente</b>. Editar qualquer coisa abre o <b>prompt UAC</b> — e a linha que será escrita aparece antes de você confirmar.
+      </div>
+    </section>
+
+    <section class="page" id="revisao">
+      <div class="pagehead">
+        <h2>Revisão</h2><span class="hint">rascunhos gerados por IA ou manuais · a decisão final é sempre sua</span>
+      </div>
+      <div id="drafts"></div>
+      <div class="uac-pop">
+        O Aegis monta um <b>prompt com o que foi medido</b> (executável real, IP/porta/protocolo/direção, regras existentes) e o <b>motor de IA é o seu</b> — Thero/Zeus respondem via arquivos, como no Sentinel. JSON malformado é <b>rejeitado com o trecho apontado</b>; nenhum rascunho vira regra sem o seu clique.
+      </div>
+    </section>
+
+    <section class="page" id="transp">
+      <div class="pagehead">
+        <h2>Transparência</h2><span class="hint">o contrato entre o Aegis e a sua máquina</span>
+      </div>
+      <div class="duo">
+        <div class="card">
+          <header style="color:var(--teal)">✓ O que o Aegis faz</header>
+          <ul class="list">
+            <li><span class="y">✓</span>Lê regras, conexões e bloqueios <b>como usuário normal</b>, sem admin</li>
+            <li><span class="y">✓</span>Explica <b>o porquê</b> de cada bloqueio em linguagem humana</li>
+            <li><span class="y">✓</span>Mostra <b>exatamente a linha</b> que será escrita antes do UAC</li>
+            <li><span class="y">✓</span>Confere cada regra aplicada relendo o firewall</li>
+            <li><span class="y">✓</span>Registra tudo num <b>log de auditoria local</b> legível aqui embaixo</li>
+          </ul>
+        </div>
+        <div class="card">
+          <header style="color:var(--red)">✗ O que o Aegis nunca faz</header>
+          <ul class="list">
+            <li><span class="n">✗</span>Bloqueia ou libera algo <b>por conta própria</b> — não existe modo "auto"</li>
+            <li><span class="n">✗</span>Apaga arquivos, quarentena ou "protege você no susto"</li>
+            <li><span class="n">✗</span>Sobrescreve regra do sistema ou de antivírus sem mostrar o conflito</li>
+            <li><span class="n">✗</span>Envia dado algum para a nuvem — o motor de IA é local/seu</li>
+            <li><span class="n">✗</span>Fica residente elevado — só o helper pontual pede UAC</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <header>Registro de auditoria <span class="srcline">.aegis/audit.log · append-only</span></header>
+        <table class="audit"><thead><tr><th>Quando</th><th>Ação</th><th>Alvo</th><th>Resultado</th></tr></thead>
+        <tbody id="tbAudit"></tbody></table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" hidden><div class="modal">
+  <h3 id="mTitle"></h3><div id="mBody"></div><div class="mActions" id="mActions"></div>
+</div></div>
+<div class="toast" id="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
