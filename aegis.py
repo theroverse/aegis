@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+"""Entry da fonte: python aegis.py (GUI) / python aegis.py status (CLI).
+
+A rota e o despacho moram em aegis.entry (fonte de verdade unica) para que o
+exe congelado (aegis_exe.py) use exatamente o mesmo comportamento.
+"""
 
 from __future__ import annotations
 
@@ -18,21 +23,8 @@ _SRC_DIR = _ENTRY_PATH.parent / "src"
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
-from aegis.cli import main
-
-
-def _route(argv):
-    """Sem args ou 'gui' -> janela (com --offline opcional); qualquer outra
-    coisa vai para o CLI do Plano A."""
-    if not argv or argv[0] == "gui":
-        return ("gui", [a for a in argv[1:] if a == "--offline"])
-    return ("cli", argv)
-
+from aegis.entry import dispatch
+from aegis.entry import route as _route  # noqa: F401  (exposto p/ testes)
 
 if __name__ == "__main__":
-    modo, resto = _route(sys.argv[1:])
-    if modo == "gui":
-        sys.path.insert(0, str(_ENTRY_PATH.parent / "gui"))
-        from aegis_app import run
-        sys.exit(run(_ENTRY_PATH, offline="--offline" in resto))
-    sys.exit(main(_ENTRY_PATH, resto))
+    sys.exit(dispatch(_ENTRY_PATH, sys.argv[1:]))

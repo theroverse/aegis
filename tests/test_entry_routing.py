@@ -23,6 +23,12 @@ def test_roteamento_padrao():
     assert m._route(["--offline", "status"]) == ("cli", ["--offline", "status"])
 
 
+def test_roteamento_atalho_cli_explicito():
+    m = _carregar_entry()
+    assert m._route(["--cli", "status"]) == ("cli", ["status"])
+    assert m._route(["--cli"]) == ("cli", [])
+
+
 def test_helper_e_procurado_ao_lado_do_exe_quando_frozen(tmp_path, monkeypatch):
     # Simula o congelado: Aegis.exe + AegisApply.exe irmaos no dist.
     (tmp_path / "AegisApply.exe").write_bytes(b"")
