@@ -83,3 +83,9 @@ class ComFirewallProvider:
 
     def remove_rule(self, name: str) -> None:
         self._policy.Rules.Remove(name)
+
+    def raw_policy(self):
+        """Escapamento controlado para o helper: o op set_enabled precisa do
+        objeto COM vivo para mutar Enabled; a leitura continua via get_rule.
+        Nao usar para nada novo sem revisitar este contrato."""
+        return self._policy

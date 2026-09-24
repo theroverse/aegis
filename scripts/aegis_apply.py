@@ -38,6 +38,10 @@ def main(argv):
         elif req["op"] == "remove_rule":
             provider.remove_rule(req["name"])
             out = {"ok": True}
+        elif req["op"] == "set_enabled":
+            rule = provider.raw_policy().Rules.Item(req["name"])
+            rule.Enabled = bool(req["enabled"])
+            out = {"ok": True}
         else:
             out = {"ok": False, "motivo": f"op desconhecido: {req['op']}"}
     except Exception as exc:  # erro literal, nunca silencioso

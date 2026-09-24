@@ -92,3 +92,31 @@ class ApplyService:
         self.audit.record("regra.removida" if ok else "regra.remocao.falhou",
                           name, "ok" if ok else str(motivo or "falha"))
         return {"ok": ok, "motivo": motivo}
+
+    def set_enabled(self, name: str, enabled: bool) -> Dict[str, Any]:
+        rule = self.provider.get_rule(name)
+        if rule is None:
+            self.audit.record("regra.toggle", name, "nao encontrada")
+            return {"ok": False, "motivo": "regra nao encontrada"}
+        if rule.built_in:
+            self.audit.record("regra.toggle", name,
+                              "recusada: regra de sistema/terceiros — nada alterado")
+            return {"ok": False,
+                    "motivo": "regra de sistema/terceiros: o Aegis nao a altera"}
+        request = {"op": "set_enabled", "name": name, "enabled": enabled}
+        try:
+            result = self.runner(request) or {}
+            after = self.provider.get_rule(name)
+        except Exception as exc:
+            # transporte (spawn/JSON) nao pode furar a promessa de todo desfecho auditado
+            self.audit.record("regra.toggle", name, f"erro interno: {exc}")
+            return {"ok": False, "motivo": f"erro interno: {exc}"}
+        if not result.get("ok"):
+            self.audit.record("regra.toggle", name, result.get("motivo", "falha"))
+            return {"ok": False, "motivo": result.get("motivo", "falha")}
+        verificada = after is not None and after.enabled == enabled
+        rotulo = "habilitada" if enabled else "desabilitada"
+        self.audit.record("regra.toggle", name,
+                          rotulo + (" + verificada" if verificada
+                                     else " (releitura divergiu)"))
+        return {"ok": True, "verificada": verificada, "enabled": enabled}
