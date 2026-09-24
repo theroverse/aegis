@@ -38,6 +38,7 @@ class AegisApi:
         self._state = engine.audit.path.parent  # .aegis/ ao lado do entry
         self._escrita = threading.Lock()      # nunca dois UACs ao mesmo tempo
         self._janela = None    # preenchida em run(): alvo de min/close/drag
+        self._bandeja = None   # preenchida no events.shown: None = sem bandeja
 
     # ---------- leitura ----------
     def status(self) -> Dict[str, Any]:
@@ -174,8 +175,17 @@ class AegisApi:
             self._janela.minimize()
 
     def win_close(self) -> None:
-        if self._janela:
-            self._janela.close()
+        """x da titlebar: com bandeja pronta, ESCONDE a janela — o motor
+        segue vigiando la embaixo (convencao Sentinel). Sem bandeja, o x
+        fecha de verdade via destroy(). Nunca .close(): o Window do
+        pywebview 6.2.1 nao tem esse metodo — era o bug do x morto."""
+        if not self._janela:
+            return
+        if self._bandeja is not None and self._bandeja.pronto:
+            self._janela.hide()
+            self._bandeja.avisar()
+        else:
+            self._janela.destroy()
 
     def win_drag(self) -> None:
         """mousedown na titlebar: entrega a janela ao Windows como caption
@@ -214,6 +224,135 @@ def _web_dir() -> Path:
     return Path(__file__).resolve().parent / "web"
 
 
+class _Bandeja:
+    """Bandeja (system tray) real do Aegis via pythonnet, no formato do
+    Sentinel: clique/duplo reabrem o console; menu tem 'Sair do Aegis' que
+    destroi a janela de verdade (o que dispara events.closed -> engine.stop).
+    O NotifyIcon precisa ser criado na thread GUI que bomba mensagens (a do
+    pywebview), senao o clique nao chega — por isso run() o monta no
+    events.shown via Invoke, nunca na thread principal. 'pronto' so e True
+    quando o icone respondeu que esta visivel (licao do SentinelHost:
+    Visible pode falhar sem lancar)."""
+
+    def __init__(self, janela):
+        self._janela = janela
+        self._hint_shown = False
+        self._icon = None
+        try:
+            import clr  # pythonnet: ja vem com o backend winforms do pywebview
+            clr.AddReference("System.Windows.Forms")
+            clr.AddReference("System.Drawing")
+            from System import EventHandler
+            from System.Drawing import Icon, SystemIcons
+            from System.Windows.Forms import (ContextMenuStrip, NotifyIcon,
+                                              ToolStripMenuItem,
+                                              ToolStripSeparator)
+        except Exception:
+            return
+        try:
+            if getattr(sys, "frozen", False):
+                # exe unico: a face do produto mora no proprio Aegis.exe
+                icone = Icon.ExtractAssociatedIcon(sys.executable)
+            else:
+                ico = Path(__file__).resolve().parent / "Aegis.ico"
+                icone = Icon(ico.as_posix()) if ico.exists() \
+                    else SystemIcons.Application
+            self._icon = NotifyIcon()
+            self._icon.Icon = icone
+            self._icon.Text = "Aegis — escudo de rede · Theroverse"
+            menu = ContextMenuStrip()
+            abrir = ToolStripMenuItem("Abrir console")
+            abrir.Click += EventHandler(self._mostrar)  # add_Click nao
+            sep = ToolStripSeparator()                  # converte callable
+            sair = ToolStripMenuItem("Sair do Aegis")   # cru: lição do spike
+            sair.Click += EventHandler(self._sair)
+            for item in (abrir, sep, sair):
+                menu.Items.Add(item)
+            self._icon.ContextMenuStrip = menu
+            self._icon.Click += EventHandler(self._mostrar)
+            self._icon.DoubleClick += EventHandler(self._mostrar)
+        except Exception:
+            self._icon = None
+
+    @property
+    def pronto(self) -> bool:
+        try:
+            return bool(self._icon is not None and self._icon.Visible)
+        except Exception:
+            return False
+
+    def mostrar(self) -> bool:
+        """Revela a bandeja (Visible=True). So entao o x da titlebar pode
+        esconder a janela; sem isto, esconder = suma. Retorna o estado real."""
+        if self._icon is None:
+            return False
+        try:
+            self._icon.Visible = True
+        except Exception:
+            return False
+        return bool(self._icon.Visible)
+
+    def avisar(self) -> None:
+        """Balao de uma vida: 'escondeu pra onde?' e a pergunta obvia do x."""
+        if self._hint_shown or self._icon is None:
+            return
+        self._hint_shown = True
+        try:
+            from System.Windows.Forms import ToolTipIcon
+            self._icon.ShowBalloonTip(
+                4000, "Aegis na bandeja",
+                "Continua vigiando. Clique duplo no icone para voltar.",
+                ToolTipIcon.Info)
+        except Exception:
+            pass
+
+    def _mostrar(self, *_):
+        try:
+            self._janela.restore()
+            self._janela.show()
+        except Exception:
+            pass
+
+    def _sair(self, *_):
+        try:
+            if self._icon is not None:
+                self._icon.Visible = False
+        except Exception:
+            pass
+        try:
+            self._janela.destroy()
+        except Exception:
+            pass
+
+
+def _montar_bandeja(janela):
+    """Cria a _Bandeja na thread GUI (pywebview winforms) via Invoke, para o
+    NotifyIcon nascer no message loop que processa seus cliques. Returns the
+    bandeja if it came up visible (pronto), else None -> x cai no destroy()."""
+    resultado = {}
+
+    def _criar():
+        try:
+            b = _Bandeja(janela)
+            resultado["b"] = b if b.mostrar() and b.pronto else None
+        except Exception:
+            resultado["b"] = None
+
+    try:
+        native = getattr(janela, "native", None)
+    except Exception:
+        native = None
+    if native is None:
+        _criar()
+    else:
+        try:
+            from System import Func, Type
+            native.Invoke(Func[Type](_criar))
+        except Exception:
+            _criar()
+    return resultado.get("b")
+
+
 def run(entry: Path, offline: bool = False) -> int:
     import webview  # import tardio deliberado: so a janela real precisa dele
     engine = make_engine(Path(entry), offline)
@@ -226,12 +365,20 @@ def run(entry: Path, offline: bool = False) -> int:
         frameless=True, resizable=False)
     api._janela = janela  # private: publico seria recursado pelo pywebview
 
+    def _ao_mostrar(*_):
+        # bandeja montada Ja que a janela existe: x esconde, clique reabre
+        api._bandeja = _montar_bandeja(janela)
+
     def _ao_fechar():
         engine.stop()
 
     try:
+        janela.events.shown += _ao_mostrar
+    except (TypeError, AttributeError):  # stubs simples de teste
+        pass
+    try:
         janela.events.closed += _ao_fechar
-    except TypeError:  # stubs simples de teste
+    except (TypeError, AttributeError):  # stubs simples de teste
         pass
     webview.start()
     return 0

@@ -267,6 +267,108 @@ def test_ponte_tem_controles_de_janela_e_sao_seguros_sem_janela(api):
         getattr(api, nome)()  # nao pode lancar
 
 
+def test_win_close_esconde_para_bandeja_pronta_e_destroi_sem_ela(api):
+    # Convencao da suite (SentinelHost.ps1): o x da titlebar customizada nao
+    # mata o vigia — esconde para a bandeja, e a bandeja e quem manda sair.
+    # E o Window do pywebview 6.2.1 NAO tem close(): chamar .close() era o
+    # bug do "clico no x e nada acontece". A saida real e destroy().
+    class _J:
+        def __init__(self):
+            self.chamadas = []
+
+        def hide(self):
+            self.chamadas.append("hide")
+
+        def destroy(self):
+            self.chamadas.append("destroy")
+
+    class _B:
+        pronto = True
+
+        def __init__(self):
+            self.avisos = 0
+
+        def avisar(self):
+            self.avisos += 1
+
+    api._janela = _J()
+    bandeja = _B()
+    api._bandeja = bandeja
+    api.win_close()
+    assert api._janela.chamadas == ["hide"] and bandeja.avisos == 1
+
+    api._janela = _J()
+    api._bandeja = None  # sem bandeja (preview/headless): x fecha de verdade
+    api.win_close()
+    assert api._janela.chamadas == ["destroy"]
+
+    class _Bruka:
+        pronto = False  # NotifyIcon nao apareceu: esconder sem bandeja = suma
+
+        def avisar(self):
+            raise AssertionError("nao deve avisar com bandeja nao-pronta")
+
+    api._janela = _J()
+    api._bandeja = _Bruka()
+    api.win_close()
+    assert api._janela.chamadas == ["destroy"]
+
+
+def test_run_monta_bandeja_ao_mostrar_a_janela(tmp_path, monkeypatch):
+    # NotifyIcon so recebe cliques na thread que bomba mensagens (o app.Run
+    # do backend winforms): run() precisa amarrar _montar_bandeja ao evento
+    # 'shown' da janela, nunca criar a bandeja na thread principal.
+    montada = []
+    monkeypatch.setattr("aegis_app._montar_bandeja",
+                        lambda janela: montada.append(janela) or object())
+
+    class _Fila:
+        def __init__(self):
+            self.itens = []
+
+        def __iadd__(self, h):
+            self.itens.append(h)
+            return self
+
+    class _Eventos:
+        def __init__(self):
+            self.shown = _Fila()
+            self.closed = _Fila()
+
+    class _Janela:
+        def __init__(self):
+            self.events = _Eventos()
+
+    criado = {}
+
+    def create_window(title, **kw):
+        criado["kw"] = kw
+        return _Janela()
+
+    stub = types.ModuleType("webview")
+    stub.create_window = create_window
+    stub.start = lambda **kw: None
+    monkeypatch.setitem(sys.modules, "webview", stub)
+    prov = FakeFirewallProvider()
+    eng = Engine(provider=prov, conn_source=FakeConnSource(),
+                 block_source=FakeBlockSource(batches=[]),
+                 runner=lambda req: {"ok": False, "motivo": "offline"},
+                 anchor=tmp_path / "aegis.py")
+    monkeypatch.setattr("aegis_app.make_engine", lambda entry, offline: eng)
+    from aegis_app import run
+    assert run(tmp_path / "aegis.py", offline=True) == 0
+    janela = criado["kw"]["js_api"].aegis_api._janela
+    assert janela.events.shown.itens, "run() nao amarrou nada ao events.shown"
+    assert not montada, "bandeja criada antes da janela aparecer"
+    for h in janela.events.shown.itens:
+        h()
+    assert montada == [janela]
+    assert janela.events.closed.itens, "run() nao amarrou events.closed"
+    for h in janela.events.closed.itens:
+        h()
+    eng.stop()
+
+
 def test_run_cria_janela_frameless_e_entrega_a_janela_a_ponte(tmp_path, monkeypatch):
     # frameless=True + titlebar propria = janela identica as demais da suite;
     # com moldura nativa o Aegis e o unico app com barra do Windows (e a
@@ -311,6 +413,8 @@ def test_web_tem_titlebar_arrastavel_e_shell_que_prende_o_menu():
     css = (base / "app.css").read_text(encoding="utf-8")
     assert 'class="titlebar"' in html
     assert 'id="btnMin"' in html and 'id="btnClose"' in html
+    # o x nao fecha o vigia: esconde para a bandeja (convencao da suite)
+    assert 'title="Minimizar para a bandeja"' in html
     assert "win_drag" in js and "win_minimize" in js and "win_close" in js
     compacto = "".join(css.split())
     assert ".titlebar{" in compacto
