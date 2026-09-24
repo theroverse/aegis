@@ -246,3 +246,12 @@ def test_run_usa_webview_stub_sem_janela_real(tmp_path, monkeypatch, capsys):
 def test_app_js_resolve_ponte_onde_pywebview_publica():
     js = (Path(__file__).resolve().parents[1] / "gui" / "web" / "app.js").read_text(encoding="utf-8")
     assert "window.pywebview.api.aegis_api" in js
+
+
+def test_css_nao_deixa_overlay_engolir_o_cli():
+    # display autoral (flex/block) vence o [hidden] do UA: sem esta regra a
+    # overlay ficaria sempre visivel e engoliria todos os cliques da janela.
+    css = (Path(__file__).resolve().parents[1] / "gui" / "web" / "app.css").read_text(encoding="utf-8")
+    compacto = "".join(css.split())
+    assert "[hidden]{display:none!important}" in compacto
+    assert "width:100vw" not in compacto  # 100vw + barra vertical = rolamento horizontal fantasma
