@@ -13,6 +13,12 @@ CHANNEL = "Microsoft-Windows-Windows Firewall With Advanced Security/Firewall"
 _WECMD = "wevtutil"
 _XMLNS = re.compile(r"""\s*xmlns(:\w+)?=['"][^'"]*['"]""")
 
+# O GUI e um processo --windowed (sem console): filho de CONSOLE sem esta flag
+# herda/cria janela e pisca preto na tela a CADA poll (~5s) do Monitor. No
+# Windows vale 0x08000000; fora dele o atributo nao existe e 0 e neutro para o
+# subprocess. (licao da casa, mesma usada em aegis.system.elevate._spawn)
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 # nomes de campos (inglês) do EventData -> nosso modelo
 _KEYS = {
     "app": ("application path", "process path", "image"),
@@ -110,7 +116,8 @@ class EventLogBlockSource:
             proc = self._run([_WECMD, "qe", CHANNEL, f"/q:{q}", "/rd:true",
                               "/c:200", "/f:xml"],
                              capture_output=True, text=True,
-                             encoding="utf-8", errors="replace", timeout=20)
+                             encoding="utf-8", errors="replace", timeout=20,
+                             creationflags=_NO_WINDOW)
         except subprocess.TimeoutExpired:
             # contrato da fonte (sources.py): so SourceUnavailable ou OSError escapam
             raise SourceUnavailable("wevtutil timeout")

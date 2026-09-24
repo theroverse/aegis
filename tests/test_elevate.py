@@ -26,6 +26,9 @@ def test_comando_e_uac_visivel_e_espera():
     assert "-Verb RunAs" in joined and "-Wait" in joined
     assert "Aegis.exe" in joined
     assert "--apply" in joined
+    # RunAs continua VISIVEL (o prompt UAC e o consentimento); Hidden vale para
+    # a JANELA do processo filho — em dev e o python.exe que piscaria atras.
+    assert "-WindowStyle Hidden" in joined
 
 
 def test_runner_escreve_le_protocolo_e_cancelo(tmp_path, monkeypatch):
@@ -96,6 +99,8 @@ def test_aspas_simples_no_caminho_sao_escapadas():
     assert "o''brien" in joined
     assert joined.count("o''brien") == 4
     assert "-Verb RunAs" in joined
+    # a forma do comando continua sem console visivel depois do escapamento
+    assert "-WindowStyle Hidden" in joined
 
 
 def test_alvo_auscente_nao_culpa_uac_que_nao_existiu(tmp_path, monkeypatch):

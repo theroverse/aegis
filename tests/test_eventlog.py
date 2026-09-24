@@ -1,7 +1,13 @@
 from aegis.system.eventlog import build_query_xml, parse_wevtutil_xml
 from aegis.sources import SourceUnavailable
+import os
 import pytest
 import subprocess
+
+# Licao da casa: o processo GUI e --windowed (sem console). Filho de console
+# (wevtutil) sem CREATE_NO_WINDOW pisca janela preta na tela a cada poll.
+# Fora do Windows o atributo nao existe -> 0 -> inofensivo.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 FIXTURE = """
 <Events>
@@ -74,11 +80,17 @@ def test_parse_saida_real_wevtutil_sem_raiz_com_xmlns():
 def test_timeout_vira_source_unavailable():
     from aegis.system.eventlog import EventLogBlockSource
 
+    # mesmo sob timeout o filho precisa nascer sem janela: os kwargs vao junto
+    # na chamada que explode, entao o spy registra antes de raises.
+    vistos = []
+
     def boom(*a, **k):
+        vistos.append(k)
         raise subprocess.TimeoutExpired(cmd="wevtutil", timeout=20)
 
     with pytest.raises(SourceUnavailable):
         EventLogBlockSource(run=boom).new_events()
+    assert vistos and vistos[0].get("creationflags") == _NO_WINDOW
 
 
 def _proc(returncode=0, stdout="", stderr=""):
@@ -103,11 +115,18 @@ def _evt_xml(ts):
 def test_rc_diferente_dezero_declara_indisponivel():
     from aegis.system.eventlog import EventLogBlockSource
     # rc != 0 (canal ausente/acesso negado) deve declarar, nunca fingir ok vazio.
-    src = EventLogBlockSource(run=lambda *a, **k: _proc(
-        returncode=15000, stdout="", stderr="canal invalido"))
+    vistos = []
+
+    def run(*a, **k):
+        vistos.append(k)
+        return _proc(returncode=15000, stdout="", stderr="canal invalido")
+
+    src = EventLogBlockSource(run=run)
     with pytest.raises(SourceUnavailable) as ei:
         src.new_events()
     assert "15000" in str(ei.value)
+    # o canal cego NAO e motivo para abrir janela: o flag vai no mesmo run.
+    assert vistos and vistos[0].get("creationflags") == _NO_WINDOW
 
 
 def test_last_ts_monotonicos():
@@ -125,4 +144,30 @@ def test_last_ts_monotonicos():
     second = src.new_events()
     assert second == []
     assert src._last_ts == high
+
+
+def test_wevtutil_filho_nasce_sem_janela_de_console():
+    # O poll do Monitor chama new_events() a cada ~5s: sem CREATE_NO_WINDOW cada
+    # poll pisca uma janela de console na tela do usuario.
+    from aegis.system import eventlog as eventlog_mod
+
+    chamadas = []
+
+    def spy(cmd, **kw):
+        chamadas.append((cmd, kw))
+        return _proc(stdout=_evt_xml("2026-01-02T00:00:00"))
+
+    evs = eventlog_mod.EventLogBlockSource(run=spy).new_events()
+    assert len(evs) == 1
+    cmd, kw = chamadas[0]
+    assert cmd[0] == "wevtutil"
+    assert "creationflags" in kw, "filho de console precisa de creationflags"
+    assert kw["creationflags"] == _NO_WINDOW
+    # constante do modulo = atributo do subprocess (mesma fonte em apply_cli).
+    assert eventlog_mod._NO_WINDOW == _NO_WINDOW
+
+
+@pytest.mark.skipif(os.name != "nt", reason="CREATE_NO_WINDOW so existe no Windows")
+def test_no_windows_o_flag_e_o_valor_da_api():
+    assert _NO_WINDOW == 0x08000000
 

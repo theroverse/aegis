@@ -1,9 +1,10 @@
 """Caminho elevado: motor nunca tem admin, o processo RunAs tem.
 
 Protocolo: motor escreve req-<id>.json -> _spawn dispara o ALVO elevado com
--Verb RunAs -Wait -> o alvo escreve res-<id>.json -> motor le. Cancelar/denegar
-o UAC = nenhum result = "UAC cancelado — nada tocou o sistema". Os arquivos
-req/res ficam no work_dir como trilha forense (nenhuma limpeza deliberada).
+-Verb RunAs -WindowStyle Hidden -Wait -> o alvo escreve res-<id>.json ->
+motor le. Cancelar/denegar o UAC = nenhum result = "UAC cancelado — nada
+tocou o sistema". Os arquivos req/res ficam no work_dir como trilha forense
+(nenhuma limpeza deliberada).
 
 Exe UNICO (decisao do usuario sobre a v0 de dois exes): o alvo elevado nao e
 mais um AegisApply.exe irmao — e o proprio Aegis.exe em modo oculto
@@ -36,9 +37,13 @@ def build_elevation_command(target: ElevationTarget, request_path: Path,
     arglist = ",".join(f"'{_q(a)}'"
                        for a in [*[str(x) for x in args],
                                  str(request_path), str(result_path)])
+    # Hidden e a JANELA do processo filho, nao o consentimento: o UAC continua
+    # visivel (RunAs). Congelado nao ha console a esconder (o alvo e o mesmo
+    # exe --windowed); em dev o alvo e python.exe, subsistema CONSOLE, e sem
+    # este flag a janela preta pisca atras do modal a cada aplicacao.
     ps = (f"Start-Process -FilePath '{_q(Path(exe))}' "
           f"-ArgumentList {arglist} "
-          "-Verb RunAs -Wait")
+          "-Verb RunAs -WindowStyle Hidden -Wait")
     return ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps]
 
 

@@ -18,6 +18,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Filho de CONSOLE de um pai --windowed (o Aegis.exe elevado): sem esta flag o
+# netsh pisca uma janela preta atras do modal de UAC. 0x08000000 no Windows,
+# inexistente (e neutro) fora dele. Mesma licao de aegis.system.elevate._spawn.
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
 
 def main(req_path: Path, result_path: Path) -> int:
     request_path, result_path = Path(req_path), Path(result_path)
@@ -58,7 +63,7 @@ def main(req_path: Path, result_path: Path) -> int:
                 ["netsh", "advfirewall", "set", "allprofiles", "logging",
                  "allowed=disable", "blocked=enable",
                  f"logfilename={log_path}"],
-                capture_output=True, timeout=60)
+                capture_output=True, timeout=60, creationflags=_NO_WINDOW)
             if r.returncode == 0:
                 out = {"ok": True}
             else:
