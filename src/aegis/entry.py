@@ -44,5 +44,22 @@ def dispatch(entry: Path, argv: Sequence[str]) -> int:
             sys.path.insert(0, gui_dir)
         from aegis_app import run
         return run(entry, offline="--offline" in resto)
+    # Guarda de console do exe windowed: Aegis.exe --cli num terminal
+    # interativo herda um stdout morto (print explode com OSError EINVAL).
+    # Sem anexar o console do pai NAO podemos imprimir nada -- e sair 0
+    # calado seria uma mentira. Devolvemos 2 com o aviso possivel.
+    # Import tardio pelo pacote: entry nao conhece ctypes, so aegis.system.
+    from aegis.system.console import ensure_cli_console
+    if not ensure_cli_console():
+        aviso = ("aegis: sem console: use um terminal real ou "
+                 "-RedirectStandardOutput (exe windowed)")
+        try:
+            print(aviso, file=sys.stderr)
+        except Exception:
+            try:
+                print(aviso)
+            except Exception:
+                pass  # ultima tentativa honesta; o exit code 2 e o aviso
+        return 2
     from aegis.cli import main
     return main(entry, resto)

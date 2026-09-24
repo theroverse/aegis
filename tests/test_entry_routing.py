@@ -59,3 +59,37 @@ def test_exe_entry_congelado_usa_o_mesmo_dispatch_da_fonte():
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert mod.dispatch is aegis.entry.dispatch
+
+
+def test_cli_sem_console_devolve_2_e_nao_chama_main(monkeypatch, tmp_path):
+    # Exe windowed no terminal sem pai anexavel: o dispatch NAO pode fingir
+    # sucesso -- devolve 2 e nem chega a rodar aegis.cli.main (que imprimiria
+    # num fluxo morto). O guard e importado tarde por caminho de modulo,
+    # entao patchar o atributo em aegis.system.console funciona.
+    import aegis.cli
+    import aegis.entry
+    import aegis.system.console
+    monkeypatch.setattr(aegis.system.console, "ensure_cli_console", lambda: False)
+    chamada = []
+    monkeypatch.setattr(aegis.cli, "main",
+                        lambda entry, argv: chamada.append((entry, argv)) or 0)
+    assert aegis.entry.dispatch(tmp_path / "aegis.py", ["status"]) == 2
+    assert chamada == []  # main spy NUNCA invocado: sem false-success mudo
+
+
+def test_cli_com_console_segue_para_o_main(monkeypatch, tmp_path):
+    # Caminho feliz da rota CLI: guard True -> dispatch delega a main com o
+    # resto dos argumentos (from-import tardio le o atributo do modulo, por
+    # isso o monkeypatch em aegis.cli.main e efetivo).
+    import aegis.cli
+    import aegis.entry
+    monkeypatch.delattr(sys, "frozen", raising=False)  # da fonte: guard e True
+    recebida = []
+
+    def fake_main(entry, argv):
+        recebida.append((entry, argv))
+        return 7
+
+    monkeypatch.setattr(aegis.cli, "main", fake_main)
+    assert aegis.entry.dispatch(tmp_path / "aegis.py", ["--cli", "status"]) == 7
+    assert recebida == [(tmp_path / "aegis.py", ["status"])]
