@@ -57,24 +57,34 @@ def main(req_path: Path, result_path: Path) -> int:
             # isto o monitor nao ve nada. netsh em vez de COM porque a chave de
             # log so aparece no shell; escreve config de firewall, entao so roda
             # aqui, sob UAC visivel, com o motivo literal de volta ao motor.
+            # Sintaxe real provada na maquina com `netsh advfirewall set
+            # allprofiles /?`: logging e UM parametro por chamada, com nome e
+            # valor em argv separados — allowedconnections / droppedconnections /
+            # filename (nao existem "allowed=", "blocked=" nem "logfilename=").
             log_path = os.path.expandvars(
                 "%windir%\\system32\\LogFiles\\Firewall\\pfirewall.log")
-            r = subprocess.run(
+            comandos = [
                 ["netsh", "advfirewall", "set", "allprofiles", "logging",
-                 "allowed=disable", "blocked=enable",
-                 f"logfilename={log_path}"],
-                capture_output=True, timeout=60, creationflags=_NO_WINDOW)
-            if r.returncode == 0:
-                out = {"ok": True}
-            else:
-                # sem text=True: o output redirecionado do netsh vem em OEM e
-                # decodificar pelo codepage do LOCALE estouraria UnicodeDecodeError
-                # DEPOIS de um rc=0 — mutacao real marcada ok:False. Captura em
-                # bytes e decode defensivo.
-                bruto = (r.stderr or b"") + b" / " + (r.stdout or b"")
-                saida = " ".join(bruto.decode("utf-8", errors="replace").split())
-                out = {"ok": False,
-                       "motivo": f"netsh rc={r.returncode}: {saida[:200]}"}
+                 "allowedconnections", "disable"],
+                ["netsh", "advfirewall", "set", "allprofiles", "logging",
+                 "droppedconnections", "enable"],
+                ["netsh", "advfirewall", "set", "allprofiles", "logging",
+                 "filename", log_path],
+            ]
+            out = {"ok": True}
+            for cmd in comandos:
+                r = subprocess.run(cmd, capture_output=True, timeout=60,
+                                   creationflags=_NO_WINDOW)
+                if r.returncode != 0:
+                    # sem text=True: o output redirecionado do netsh vem em OEM e
+                    # decodificar pelo codepage do LOCALE estouraria UnicodeDecodeError
+                    # DEPOIS de um rc=0 — mutacao real marcada ok:False. Captura em
+                    # bytes e decode defensivo.
+                    bruto = (r.stderr or b"") + b" / " + (r.stdout or b"")
+                    saida = " ".join(bruto.decode("utf-8", errors="replace").split())
+                    out = {"ok": False,
+                           "motivo": f"netsh rc={r.returncode}: {saida[:200]}"}
+                    break
         else:
             out = {"ok": False, "motivo": f"op desconhecido: {req['op']}"}
     except Exception as exc:  # erro literal, nunca silencioso

@@ -38,11 +38,16 @@ def test_enable_firewall_log_ok_e_netsh_filho_sem_janela(tmp_path, monkeypatch):
     assert aegis.apply_cli.main(req, res) == 0
     assert json.loads(res.read_text(encoding="utf-8")) == {"ok": True}
 
-    assert len(chamadas) == 1, "netsh e uma chamada por pedido"
-    cmd, kw = chamadas[0]
-    assert cmd[0] == "netsh" and "advfirewall" in cmd
-    assert "creationflags" in kw, "netsh filho precisa de creationflags"
-    assert kw["creationflags"] == _NO_WINDOW
+    assert len(chamadas) == 3, "netsh logging: um parametro por chamada"
+    for cmd, kw in chamadas:
+        assert cmd[0] == "netsh" and "advfirewall" in cmd
+        assert "creationflags" in kw, "netsh filho precisa de creationflags"
+        assert kw["creationflags"] == _NO_WINDOW
+    tails = [cmd[4:] for cmd, _ in chamadas]
+    assert tails == [["logging", "allowedconnections", "disable"],
+                     ["logging", "droppedconnections", "enable"],
+                     ["logging", "filename", tails[2][2]]]
+    assert tails[2][2].lower().endswith("pfirewall.log")
     assert aegis.apply_cli._NO_WINDOW == _NO_WINDOW
 
 
@@ -52,7 +57,7 @@ def test_netsh_falho_devolve_motivo_literal_e_continua_sem_janela(
     vistos = []
 
     def fake_run(cmd, **kw):
-        vistos.append(kw)
+        vistos.append((cmd, kw))
         return SimpleNamespace(returncode=1, stdout=b"",
                                stderr="acesso negado".encode("utf-8"))
 
@@ -64,4 +69,6 @@ def test_netsh_falho_devolve_motivo_literal_e_continua_sem_janela(
     assert aegis.apply_cli.main(req, res) == 1
     out = json.loads(res.read_text(encoding="utf-8"))
     assert out["ok"] is False and out["motivo"].startswith("netsh rc=1")
-    assert vistos and vistos[0].get("creationflags") == _NO_WINDOW
+    # falha dura na primeira chamada: parar ali, nao martelar as outras duas
+    assert len(vistos) == 1, "netsh falhou no primeiro, nao adianta o resto"
+    assert vistos[0][1].get("creationflags") == _NO_WINDOW
