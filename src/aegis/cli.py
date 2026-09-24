@@ -26,6 +26,17 @@ def _offline_engine(entry: Path):
                   anchor=entry)
 
 
+def _resolver_helper(entry: Path) -> Path:
+    if getattr(sys, "frozen", False):
+        base = Path(sys.executable).parent
+    else:
+        base = Path(entry).parent
+    exe = base / "AegisApply.exe"
+    if exe.exists():
+        return exe
+    return base / "scripts" / "aegis_apply.py"
+
+
 def _windows_engine(entry: Path):
     from aegis.system.connections import active_connections
     from aegis.system.eventlog import EventLogBlockSource
@@ -47,9 +58,7 @@ def _windows_engine(entry: Path):
             return list(block.new_events()) + list(offline_log.new_events())
 
     from aegis.system.elevate import ElevatedRunner
-    helper = entry.parent / "AegisApply.exe"
-    if not helper.exists():
-        helper = entry.parent / "scripts" / "aegis_apply.py"
+    helper = _resolver_helper(entry)
     return Engine(provider=prov,
                   conn_source=type("C", (), {"connections": lambda self: active_connections()})(),
                   block_source=_Composite(),

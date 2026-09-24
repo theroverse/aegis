@@ -32,8 +32,12 @@ def build_elevation_command(helper_exe: Path, request_path: Path,
 
 
 def _spawn(helper_exe: Path, request_path: Path, result_path: Path) -> None:
+    # exe pai --windowed nao tem console; sem CREATE_NO_WINDOW o powershell
+    # filho pisca uma janela preta na tela do usuario (licao da casa).
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     subprocess.run(build_elevation_command(helper_exe, request_path, result_path),
-                   capture_output=True, text=True, timeout=120)
+                   capture_output=True, text=True, timeout=120,
+                   creationflags=flags)
 
 
 _SPAWN_REAL = _spawn  # referencia fixa para distinguir o seam de teste

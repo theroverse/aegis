@@ -20,5 +20,19 @@ if str(_SRC_DIR) not in sys.path:
 
 from aegis.cli import main
 
+
+def _route(argv):
+    """Sem args ou 'gui' -> janela (com --offline opcional); qualquer outra
+    coisa vai para o CLI do Plano A."""
+    if not argv or argv[0] == "gui":
+        return ("gui", [a for a in argv[1:] if a == "--offline"])
+    return ("cli", argv)
+
+
 if __name__ == "__main__":
-    main(_ENTRY_PATH)
+    modo, resto = _route(sys.argv[1:])
+    if modo == "gui":
+        sys.path.insert(0, str(_ENTRY_PATH.parent / "gui"))
+        from aegis_app import run
+        sys.exit(run(_ENTRY_PATH, offline="--offline" in resto))
+    sys.exit(main(_ENTRY_PATH, resto))
