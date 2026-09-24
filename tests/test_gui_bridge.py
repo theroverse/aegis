@@ -52,6 +52,16 @@ def _jsonavel(obj):
     return json.loads(json.dumps(obj, ensure_ascii=False, default=str))
 
 
+def test_ponte_so_expoe_metodos_publicos(api):
+    # pywebview recursa em atributos publicos nao-callaveis: um .engine
+    # publico entregaria ao JS o Engine inteiro, inclusive escritas que
+    # pulam a locka _escrita. Nada publico da ponte pode ser atributo.
+    for nome in dir(api):
+        if nome.startswith("_"):
+            continue
+        assert callable(getattr(api, nome)), f"atributo publico nao-metodo: {nome}"
+
+
 def test_status_devolve_formas_json_seguras(api):
     s = _jsonavel(api.status())
     for chave in ("regras_total", "regras_aegis", "conexoes", "bloqueios",
@@ -62,11 +72,11 @@ def test_status_devolve_formas_json_seguras(api):
 
 
 def test_rules_filtra_e_marca_o_que_e_do_aegis(api):
-    api.engine.provider.inject(RuleInfo(
+    api._engine.provider.inject(RuleInfo(
         name="Aegis · steam udp", direction="out", action="allow",
         protocol="udp", local_ports="3476", profiles=("private",),
         enabled=True, program="C:\\steam\\steam.exe", built_in=False))
-    api.engine.provider.inject(RuleInfo(
+    api._engine.provider.inject(RuleInfo(
         name="@FirewallAPI.dll,-23090", direction="in", action="allow",
         protocol="icmpv6", local_ports="*", profiles=("domain",),
         enabled=False, program="", built_in=True))
@@ -90,7 +100,7 @@ def test_understand_escreve_prompt_e_devolve_texto(api):
     assert "qbittorrent" in res["prompt"].lower()
     p = Path(res["path"])
     assert p.exists() and "6881" in p.read_text(encoding="utf-8")
-    assert p.parent == api.state / "prompts"
+    assert p.parent == api._state / "prompts"
 
 
 def test_understand_com_hostile_devolve_motivo_sem_explodir(api):
@@ -110,7 +120,7 @@ def test_new_rule_e_ingest_serializam_na_mesma_locka(api, monkeypatch):
     import time
     from concurrent.futures import ThreadPoolExecutor
 
-    origem = api.engine.drafts.add
+    origem = api._engine.drafts.add
     dentro = []
     sobreposta = []
 
@@ -124,7 +134,7 @@ def test_new_rule_e_ingest_serializam_na_mesma_locka(api, monkeypatch):
         finally:
             dentro.pop()
 
-    monkeypatch.setattr(api.engine.drafts, "add", vigiada)
+    monkeypatch.setattr(api._engine.drafts, "add", vigiada)
     specs = [json.dumps(dict(GOOD_SPEC, name=f"Aegis · lote {i}",
                              local_ports=str(9000 + i))) for i in range(6)]
     respostas = [json.dumps([{"rule": dict(GOOD_SPEC, name=f"Aegis · ia {i}",
@@ -164,7 +174,7 @@ def test_nova_regra_manual_entra_na_fila_e_spec_ruim_recusa(api):
 
 
 def test_approve_repassa_resultado_e_conflito_vem_serializado(api):
-    api.engine.provider.inject(RuleInfo(
+    api._engine.provider.inject(RuleInfo(
         name="outra regra", direction="in", action="allow", protocol="tcp",
         local_ports="6881", profiles=("private",), enabled=True,
         program="C:\\q\\qbittorrent.exe", built_in=True))
@@ -203,6 +213,7 @@ def test_run_usa_webview_stub_sem_janela_real(tmp_path, monkeypatch, capsys):
 
     def create_window(title, **kw):
         chamado["titulo"] = title
+        chamado["kw"] = kw
         return _Janela()
 
     def start(**kw):
@@ -225,4 +236,13 @@ def test_run_usa_webview_stub_sem_janela_real(tmp_path, monkeypatch, capsys):
     assert rc == 0
     assert chamado.get("start") is True
     assert "Aegis" in chamado["titulo"]
+    # O pywebview 6 so publica metodos sob window.pywebview.api: o js_api
+    # precisa de um atributo publico 'aegis_api' para o JS resolver a ponte.
+    js_api = chamado["kw"]["js_api"]
+    assert isinstance(getattr(js_api, "aegis_api", None), AegisApi)
     eng.stop()
+
+
+def test_app_js_resolve_ponte_onde_pywebview_publica():
+    js = (Path(__file__).resolve().parents[1] / "gui" / "web" / "app.js").read_text(encoding="utf-8")
+    assert "window.pywebview.api.aegis_api" in js

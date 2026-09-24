@@ -15,11 +15,18 @@ function esc(s) {
   return String(s ?? "").replace(/[&<>"]/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+function aegisApi() {
+  // pywebview 6 publica TUDO sob window.pywebview.api; o namespace aegis_api
+  // vem do wrapper _Ponte no python (atributo publico -> nome pontado).
+  return (window.pywebview && window.pywebview.api
+          && window.pywebview.api.aegis_api) || null;
+}
 async function api(nome, ...args) {
-  if (!window.aegis_api || !window.aegis_api[nome]) {
+  const ponte = aegisApi();
+  if (!ponte || !ponte[nome]) {
     throw new Error("ponte aegis_api indisponivel");
   }
-  return await window.aegis_api[nome](...args);
+  return await ponte[nome](...args);
 }
 function toast(msg, tipo = "ok", ms = 4200) {
   const t = $("toast");
@@ -369,8 +376,9 @@ async function tick() {
   }
 }
 async function esperarPonte(tenta = 0) {
-  if (window.aegis_api) { tick(); setInterval(tick, 2000); return; }
-  if (tenta > 150) { toast("ponte com o motor não apareceu — a janela está aberta mas sem window.aegis_api", "err", 30000); return; }
+  const api = aegisApi();
+  if (api) { tick(); setInterval(tick, 2000); return; }
+  if (tenta > 150) { toast("ponte com o motor não apareceu — a janela está aberta mas sem window.pywebview.api.aegis_api", "err", 30000); return; }
   setTimeout(() => esperarPonte(tenta + 1), 40);
 }
 esperarPonte();

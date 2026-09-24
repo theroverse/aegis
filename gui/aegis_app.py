@@ -1,4 +1,4 @@
-"""Casca grafica do Aegis: pywebview + ponte window.aegis_api.
+"""Casca grafica do Aegis: pywebview + ponte window.pywebview.api.aegis_api.
 
 GUI e casca burra: nenhuma decisao mora aqui — so serializacao, filtro e
 repasse para o motor (aegis.engine). webview e importado DENTRO de run() para
@@ -28,18 +28,20 @@ def make_engine(entry: Path, offline: bool):
 
 
 class AegisApi:
-    """Objeto exposto ao JS como window.aegis_api. Tudo entra/sai JSON-safe."""
+    """Metodos da ponte. O pywebview 6 publica isto em
+    window.pywebview.api.aegis_api (via _Ponte abaixo), nunca em
+    window.aegis_api. Tudo entra/sai JSON-safe."""
 
     def __init__(self, engine, entry: Path):
-        self.engine = engine
-        self.entry = Path(entry)
-        self.state = engine.audit.path.parent  # .aegis/ ao lado do entry
+        self._engine = engine
+        self._entry = Path(entry)
+        self._state = engine.audit.path.parent  # .aegis/ ao lado do entry
         self._escrita = threading.Lock()      # nunca dois UACs ao mesmo tempo
 
     # ---------- leitura ----------
     def status(self) -> Dict[str, Any]:
-        snap = self.engine.monitor.snapshot()
-        rules = self.engine.provider.list_rules()
+        snap = self._engine.monitor.snapshot()
+        rules = self._engine.provider.list_rules()
         return {
             "regras_total": len(rules),
             "regras_aegis": sum(1 for r in rules if not r.built_in),
@@ -48,7 +50,7 @@ class AegisApi:
             "estado_conexoes": self._estado(snap["estado_conexoes"]),
             "estado_bloqueios": self._estado(snap["estado_bloqueios"]),
             "revisoes_pendentes": [self._draft(d)
-                                   for d in self.engine.drafts.all("pendente")],
+                                   for d in self._engine.drafts.all("pendente")],
             "sessao": "sem admin",
         }
 
@@ -60,7 +62,7 @@ class AegisApi:
         q = (query or "").lower()
         pf = (profile or "").lower()
         out = []
-        for r in self.engine.provider.list_rules():
+        for r in self._engine.provider.list_rules():
             if q and q not in r.name.lower() and q not in (r.program or "").lower():
                 continue
             if pf and pf not in [p.lower() for p in r.profiles]:
@@ -71,10 +73,10 @@ class AegisApi:
         return out
 
     def drafts(self) -> List[Dict[str, Any]]:
-        return [self._draft(d) for d in self.engine.drafts.all()]
+        return [self._draft(d) for d in self._engine.drafts.all()]
 
     def audit(self, tail: int = 200) -> List[str]:
-        return self.engine.audit.read(int(tail) or 200)
+        return self._engine.audit.read(int(tail) or 200)
 
     # ---------- IA: prompt em arquivo + ingestao ----------
     def understand(self, block_json: str) -> Dict[str, Any]:
@@ -88,14 +90,14 @@ class AegisApi:
         if not isinstance(b, dict):
             return {"ok": False, "motivo": "bloqueio precisa ser um objeto JSON"}
         program = b.get("program") or "?"
-        existentes = [r.name for r in self.engine.provider.list_rules()
+        existentes = [r.name for r in self._engine.provider.list_rules()
                       if program != "?" and (r.program or "").lower() == program.lower()]
-        prompt = self.engine.ask_ai({
+        prompt = self._engine.ask_ai({
             "program": program, "direction": b.get("direction", ""),
             "protocol": b.get("protocol", ""), "port": b.get("port", ""),
             "origin": f"bloqueio observado x{b.get('count', 1)} as {b.get('ts', '')}",
             "profile": "private", "existing": existentes or []})
-        pasta = self.state / "prompts"
+        pasta = self._state / "prompts"
         pasta.mkdir(parents=True, exist_ok=True)
         slug = re.sub(r"[^A-Za-z0-9._-]", "_", Path(program).name or "evento")
         caminho = pasta / f"prompt-{_dt.datetime.now():%Y%m%d-%H%M%S}-{slug}.md"
@@ -110,7 +112,7 @@ class AegisApi:
     def ingest_text(self, text: str) -> Dict[str, Any]:
         try:
             with self._escrita:  # DraftStore nao e thread-safe: worker threads do pywebview
-                adicionados = self.engine.ingest_ai_response(text)
+                adicionados = self._engine.ingest_ai_response(text)
         except AiResponseError as exc:
             return {"ok": False, "motivo": " ; ".join(exc.errors)}
         except Exception as exc:  # literal, nunca mudo
@@ -120,17 +122,17 @@ class AegisApi:
     # ---------- fila de revisao ----------
     def approve(self, draft_id: str, replace: bool = False) -> Dict[str, Any]:
         with self._escrita:
-            return self.engine.approve_and_apply(str(draft_id),
+            return self._engine.approve_and_apply(str(draft_id),
                                                  replace=bool(replace))
 
     def reject(self, draft_id: str) -> Dict[str, Any]:
         with self._escrita:
             try:
-                d = self.engine.drafts.set_status(str(draft_id), "rejeitado")
+                d = self._engine.drafts.set_status(str(draft_id), "rejeitado")
             except ValueError as exc:
                 return {"ok": False, "motivo": str(exc)}
             nome = d.spec.name if d else str(draft_id)
-            self.engine.audit.record("rascunho.rejeitado", nome, "nada alterado")
+            self._engine.audit.record("rascunho.rejeitado", nome, "nada alterado")
             return {"ok": True, "status": "rejeitado"}
 
     def new_rule(self, spec_json: str) -> Dict[str, Any]:
@@ -144,28 +146,40 @@ class AegisApi:
             rascunho = RuleDraft(spec=spec, rationale="criada pelo usuario na aba Regras",
                                  confidence="alta", checked="", origin="manual",
                                  status="pendente", draft_id="")
-            criado = self.engine.drafts.add(rascunho)
-            self.engine.audit.record("rascunho.manual", spec.name, "na fila de revisao")
+            criado = self._engine.drafts.add(rascunho)
+            self._engine.audit.record("rascunho.manual", spec.name, "na fila de revisao")
             return {"ok": True, "draft": self._draft(criado)}
 
     # ---------- escritas elevadas ----------
     def remove_rule(self, name: str) -> Dict[str, Any]:
         with self._escrita:
-            return self.engine.apply.remove(str(name))
+            return self._engine.apply.remove(str(name))
 
     def set_enabled(self, name: str, enabled: bool) -> Dict[str, Any]:
         with self._escrita:
-            return self.engine.apply.set_enabled(str(name), bool(enabled))
+            return self._engine.apply.set_enabled(str(name), bool(enabled))
 
     def enable_firewall_log(self) -> Dict[str, Any]:
         with self._escrita:
-            return self.engine.enable_firewall_log()
+            return self._engine.enable_firewall_log()
 
     @staticmethod
     def _draft(d) -> Dict[str, Any]:
         return {"draft_id": d.draft_id, "status": d.status, "origin": d.origin,
                 "rationale": d.rationale, "confidence": d.confidence,
                 "checked": d.checked, "spec": d.spec.to_dict()}
+
+
+class _Ponte:
+    """Unico proposito: dar nome a ponte. O pywebview 6.x so publica metodos
+    sob window.pywebview.api e cria namespaces a partir de pontos no nome
+    (util.get_functions recursa em atributos PUBLICOS nao-callaveis). O
+    atributo 'aegis_api' gera entao window.pywebview.api.aegis_api.<metodo>,
+    que e o que o app.js resolve. Atributos da AegisApi sao todos privados de
+    proposito: publicos seriam recursados e o Engine inteiro (com escritas que
+    pulam a _escrita) vazaria para o JS."""
+    def __init__(self, api):
+        self.aegis_api = api
 
 
 def _web_dir() -> Path:
@@ -182,7 +196,7 @@ def run(entry: Path, offline: bool = False) -> int:
     janela = webview.create_window(
         "Aegis — Escudo de Rede · Theroverse",
         url=str(_web_dir() / "index.html"),
-        js_api=api, width=1180, height=760, min_size=(980, 640))
+        js_api=_Ponte(api), width=1180, height=760, min_size=(980, 640))
 
     def _ao_fechar():
         engine.stop()
