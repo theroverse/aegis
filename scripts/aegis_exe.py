@@ -38,7 +38,7 @@ if __name__ == "__main__":
     # dispatch() espera um caminho de ARQUIVO cuja .parent e a raiz do projeto
     # (mesma convengao do aegis.py da fonte): assim tests/, gui/ e .aegis/ sao
     # resolvidos certo. Congelado, ancora no exe real (dist/), em linha com
-    # aegis.cli._resolver_helper, que tambem usa sys.executable.
+    # aegis.cli._resolver_target, que tambem usa sys.executable (exe unico).
     if getattr(sys, "frozen", False):
         _anchor = Path(sys.executable)
     else:

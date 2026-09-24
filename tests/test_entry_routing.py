@@ -29,21 +29,67 @@ def test_roteamento_atalho_cli_explicito():
     assert m._route(["--cli"]) == ("cli", [])
 
 
-def test_helper_e_procurado_ao_lado_do_exe_quando_frozen(tmp_path, monkeypatch):
-    # Simula o congelado: Aegis.exe + AegisApply.exe irmaos no dist.
-    (tmp_path / "AegisApply.exe").write_bytes(b"")
+def test_alvo_elevado_frozen_e_o_exe_unico_com_apply(tmp_path, monkeypatch):
+    # Exe UNICO: congelado, o alvo da elevacao e o proprio Aegis.exe em modo
+    # oculto --apply -- nao existe mais procura por AegisApply.exe.
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setattr(sys, "executable", str(tmp_path / "Aegis.exe"))
-    from aegis.cli import _resolver_helper
-    h = _resolver_helper(tmp_path / "na_existe" / "aegis.py")
-    assert h == tmp_path / "AegisApply.exe"
+    from aegis.cli import _resolver_target
+    exe, args = _resolver_target(tmp_path / "na_existe" / "aegis.py")
+    assert exe == tmp_path / "Aegis.exe"
+    assert args == ["--apply"]
 
 
-def test_helper_dev_e_o_script_when_sem_exe(tmp_path, monkeypatch):
-    monkeypatch.delattr(sys, "frozen", raising=True) if hasattr(sys, "frozen") else None
-    from aegis.cli import _resolver_helper
-    h = _resolver_helper(ROOT / "aegis.py")
-    assert h.name == "aegis_apply.py" and h.parent.name == "scripts"
+def test_alvo_elevado_dev_e_interpretador_mais_entry(tmp_path, monkeypatch):
+    # Da fonte: o alvo elevado e python aegis.py --apply (mesmo dispatch).
+    if hasattr(sys, "frozen"):
+        monkeypatch.delattr(sys, "frozen", raising=False)
+    from aegis.cli import _resolver_target
+    exe, args = _resolver_target(ROOT / "aegis.py")
+    assert Path(exe) == Path(sys.executable)
+    assert args == [str(ROOT / "aegis.py"), "--apply"]
+
+
+def test_rota_apply_e_oculta_e_rota_para_o_nucleo(tmp_path, monkeypatch):
+    import aegis.apply_cli
+    import aegis.entry
+    req, res = tmp_path / "req.json", tmp_path / "res.json"
+    assert aegis.entry.route(["--apply", str(req), str(res)]) == \
+        ("apply", [str(req), str(res)])
+    recebidos = []
+    monkeypatch.setattr(aegis.apply_cli, "main",
+                        lambda r, s: recebidos.append((r, s)) or 0)
+    rc = aegis.entry.dispatch(tmp_path / "aegis.py",
+                              ["--apply", str(req), str(res)])
+    assert rc == 0
+    assert recebidos == [(req, res)]  # viram Path na rota
+
+
+def test_rota_apply_sem_args_bastante_falha_honesta_2(tmp_path, monkeypatch):
+    import aegis.apply_cli
+    import aegis.entry
+    chamada = []
+    monkeypatch.setattr(aegis.apply_cli, "main",
+                        lambda r, s: chamada.append((r, s)) or 0)
+    assert aegis.entry.dispatch(tmp_path / "aegis.py", ["--apply"]) == 2
+    assert chamada == []  # nucleo nunca invocado sem req+res
+
+
+def test_rota_apply_nao_toca_a_guarda_de_console(tmp_path, monkeypatch):
+    # O helper elevado escreve ARQUIVOS e nunca imprime para console: a guarda
+    # do exe windowed (ensure_cli_console) e irrelevante na rota --apply e nao
+    # pode ser alcanada (se for, o AssertionError do fake quebra o teste).
+    import aegis.apply_cli
+    import aegis.entry
+    import aegis.system.console
+
+    def veneno():
+        raise AssertionError("guarda de console nao vale para --apply")
+
+    monkeypatch.setattr(aegis.system.console, "ensure_cli_console", veneno)
+    monkeypatch.setattr(aegis.apply_cli, "main", lambda r, s: 0)
+    assert aegis.entry.dispatch(tmp_path / "aegis.py",
+                                ["--apply", "r.json", "s.json"]) == 0
 
 
 def test_exe_entry_congelado_usa_o_mesmo_dispatch_da_fonte():

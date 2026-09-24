@@ -26,15 +26,17 @@ def _offline_engine(entry: Path):
                   anchor=entry)
 
 
-def _resolver_helper(entry: Path) -> Path:
+def _resolver_target(entry: Path) -> tuple[Path, list[str]]:
+    """Alvo do UAC com exe UNICO: o proprio Aegis.exe em modo --apply.
+
+    Congelado: (Aegis.exe, ['--apply']). Da fonte: (python, [aegis.py,
+    '--apply']) — o dispatch da fonte resolve a mesma rota oculta, entao o
+    teste elevado ponta a ponta vale nos dois modos. Ja nao existe procura
+    por AegisApply.exe irmao.
+    """
     if getattr(sys, "frozen", False):
-        base = Path(sys.executable).parent
-    else:
-        base = Path(entry).parent
-    exe = base / "AegisApply.exe"
-    if exe.exists():
-        return exe
-    return base / "scripts" / "aegis_apply.py"
+        return (Path(sys.executable), ["--apply"])
+    return (Path(sys.executable), [str(Path(entry)), "--apply"])
 
 
 def _windows_engine(entry: Path):
@@ -58,11 +60,11 @@ def _windows_engine(entry: Path):
             return list(block.new_events()) + list(offline_log.new_events())
 
     from aegis.system.elevate import ElevatedRunner
-    helper = _resolver_helper(entry)
+    target = _resolver_target(entry)
     return Engine(provider=prov,
                   conn_source=type("C", (), {"connections": lambda self: active_connections()})(),
                   block_source=_Composite(),
-                  runner=ElevatedRunner(helper, st),
+                  runner=ElevatedRunner(target, st),
                   anchor=entry, settings=settings)
 
 

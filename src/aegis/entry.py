@@ -19,9 +19,13 @@ from typing import List, Sequence, Tuple
 
 
 def route(argv: Sequence[str]) -> Tuple[str, List[str]]:
-    """Sem args ou 'gui' -> janela (com --offline opcional); '--cli' e atalho
-    explicito para o CLI; qualquer outra coisa vai para o CLI do Plano A."""
+    """'--apply <req> <res>' e o modo OCULTO do helper elevado (exe unico: o
+    proprio Aegis.exe se re-invoca com UAC); sem args ou 'gui' -> janela (com
+    --offline opcional); '--cli' e atalho explicito para o CLI; qualquer outra
+    coisa vai para o CLI do Plano A."""
     argv = list(argv)
+    if argv and argv[0] == "--apply":
+        return ("apply", argv[1:])
     if not argv or argv[0] == "gui":
         return ("gui", [a for a in argv[1:] if a == "--offline"])
     if argv[0] == "--cli":
@@ -38,6 +42,18 @@ def dispatch(entry: Path, argv: Sequence[str]) -> int:
     """
     entry = Path(entry)
     modo, resto = route(argv)
+    if modo == "apply":
+        # Modo oculto do helper (exe unico): o processo elevado e o proprio
+        # Aegis.exe, entao a rota --apply precisa de <req> <res>. Sem os dois
+        # argumentos nao ha o que aplicar — devolvemos 2 calados: imprimir
+        # ajuda aqui seria competir com o console morto do exe windowed, e o
+        # alvo so existe chamado pelo ElevateRunner, que sempre passa os dois.
+        if len(resto) < 2:
+            return 2
+        # Import tardio pelo pacote: o nucleo so toca o provedor COM quando de
+        # fato ha uma operacao para aplicar (patchavel em teste).
+        from aegis.apply_cli import main as helper_main
+        return helper_main(Path(resto[0]), Path(resto[1]))
     if modo == "gui":
         gui_dir = str(entry.parent / "gui")
         if gui_dir not in sys.path:

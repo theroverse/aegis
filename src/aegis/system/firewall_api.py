@@ -1,7 +1,8 @@
 """Unica leitura/escrita real do firewall no processo (COM HNetCfg.FwPolicy2).
 
 Vivem aqui tanto o provedor de leitura do motor (sem admin) quanto o que o
-AegisApply.exe usa no caminho elevado. Nomes/valores dos enums seguem
+modo elevado --apply (aegis.apply_cli, no mesmo exe unico) usa para escrever.
+Nomes/valores dos enums seguem
 NET_FW_RULE_DIRECTION / NET_FW_ACTION / NET_FW_IP_PROTOCOL /
 NET_FW_PROFILE_TYPE2; a constante EventLog e canais ficam em eventlog.py.
 """

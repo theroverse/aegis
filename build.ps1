@@ -1,13 +1,13 @@
 #Requires -Version 5.1
 <#
-    Compila Aegis.exe (GUI + motor) e AegisApply.exe (helper privilegiado
-    pontual) com PyInstaller, um arquivo so cada um, em dist/.
+    Compila o Aegis.exe (GUI + motor + modo oculto --apply do helper) com
+    PyInstaller, arquivo unico, em dist/.
 
-    A filosofia nao muda: sem instalador, sem escrita fora da propria pasta.
-    O Aegis.exe NUNCA roda elevado; quando o humano aplica uma regra, ele da
-    Start-Process -Verb RunAs no AegisApply.exe IRMAO (resolucao em
-    aegis.cli._resolver_helper). Copiar os dois exes juntos para qualquer
-    pasta funciona.
+    Exe UNICO (decisao do usuario sobre a v0 de dois exes): nao ha mais
+    AegisApply.exe irmao. Quando o humano aplica uma regra, o motor (que
+    NUNCA roda elevado) da Start-Process -Verb RunAs no PROPRIO Aegis.exe com
+    `--apply <req> <res>` (alvo em aegis.cli._resolver_target, nucleo em
+    aegis.apply_cli). Um unico arquivo para copiar para qualquer pasta.
 
     Roda direto da fonte continua valendo: python aegis.py (GUI) / aegis.py status (CLI).
     Uso:  .\build.ps1
@@ -57,11 +57,18 @@ if (-not (Test-PyImport -Exe 'python' -Code 'import webview, PyInstaller')) {
     if ($LASTEXITCODE -ne 0) { throw "falha ao instalar pyinstaller no 3.13 (pip exit $LASTEXITCODE)" }
 }
 
+# Icone OBRIGATORIO: com um exe so, ele e a cara do produto -- build sem
+# gui\Aegis.ico falha em vez de sair um executavel anonimo.
 $icon = Join-Path $Root 'gui\Aegis.ico'
-$iconArgs = @()
-if (Test-Path $icon) { $iconArgs = @('--icon', $icon) }
+if (-not (Test-Path $icon)) {
+    throw "icone ausente: $icon -- rode 'python gui\make_icon.py' (face do produto)"
+}
+$iconArgs = @('--icon', $icon)
 
-Write-Host "`n[1/2] Aegis.exe (GUI + motor, sem console)" -ForegroundColor Cyan
+# Retira o helper legado da distribuicao anterior (dois exes -> um so).
+Remove-Item (Join-Path $OutDir 'AegisApply.exe') -ErrorAction SilentlyContinue
+
+Write-Host "`n[1/1] Aegis.exe (GUI + motor + modo --apply, sem console)" -ForegroundColor Cyan
 $guiArgs = $PyPre + @(
     '-m', 'PyInstaller', '--noconfirm', '--clean',
     '--onefile', '--windowed', '--name', 'Aegis',
@@ -70,21 +77,11 @@ $guiArgs = $PyPre + @(
     '--add-data', ((Join-Path $Root 'gui\web') + ';web'),
     '--collect-all', 'webview',
     '--collect-submodules', 'aegis',
-    '--hidden-import', 'comtypes', '--hidden-import', 'comtypes.client', '--hidden-import', 'aegis_app'
+    '--hidden-import', 'comtypes', '--hidden-import', 'comtypes.client',
+    '--hidden-import', 'aegis_app', '--hidden-import', 'aegis.apply_cli'
 ) + $iconArgs + @((Join-Path $Root 'scripts\aegis_exe.py'))
 & $PyCmd $guiArgs
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou no Aegis.exe" }
-
-Write-Host "`n[2/2] AegisApply.exe (helper elevado pontual, sem console)" -ForegroundColor Cyan
-$applyArgs = $PyPre + @(
-    '-m', 'PyInstaller', '--noconfirm', '--clean',
-    '--onefile', '--windowed', '--name', 'AegisApply',
-    '--distpath', $OutDir, '--workpath', $Work, '--specpath', $Work,
-    '--paths', (Join-Path $Root 'src'),
-    '--hidden-import', 'comtypes', '--hidden-import', 'comtypes.client'
-) + $iconArgs + @((Join-Path $Root 'scripts\aegis_apply.py'))
-& $PyCmd $applyArgs
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou no AegisApply.exe" }
 
 # Smoke do binario offline (nao toca o sistema): precisa dos fakes dentro do
 # exe? NAO -- --offline e so para o fonte. No binario, validamos que ele abre
@@ -113,5 +110,5 @@ if ($p.ExitCode -ne 0) { throw "Aegis.exe nao respondeu ao smoke de leitura (exi
 if (-not (Test-Path $smokeOut) -or (Get-Item $smokeOut).Length -eq 0) { throw "Aegis.exe nao imprimiu status no smoke" }
 Get-Content $smokeOut
 Remove-Item $smokeOut -ErrorAction SilentlyContinue
-Write-Host "`nOK: dist\Aegis.exe + dist\AegisApply.exe" -ForegroundColor Green
+Write-Host "`nOK: dist\Aegis.exe (exe unico)" -ForegroundColor Green
 
