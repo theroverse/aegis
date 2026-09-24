@@ -258,6 +258,66 @@ def test_app_js_resolve_ponte_onde_pywebview_publica():
     assert "window.pywebview.api.aegis_api" in js
 
 
+def test_ponte_tem_controles_de_janela_e_sao_seguros_sem_janela(api):
+    # A titlebar customizada (casca da suite: Sentinel/Vector/Genesis) precisa
+    # de min/close/drag do lado Python. Sem janela atribuida (preview no
+    # navegador), chamar cada um tem de ser no-op silencioso, nunca excecao.
+    for nome in ("win_minimize", "win_close", "win_drag"):
+        assert callable(getattr(api, nome)), f"ponte sem {nome}"
+        getattr(api, nome)()  # nao pode lancar
+
+
+def test_run_cria_janela_frameless_e_entrega_a_janela_a_ponte(tmp_path, monkeypatch):
+    # frameless=True + titlebar propria = janela identica as demais da suite;
+    # com moldura nativa o Aegis e o unico app com barra do Windows (e a
+    # ponte precisa da janela para min/close/drag).
+    criado = {}
+
+    class _Eventos:
+        closed = None
+
+        def __iadd__(self, other):
+            return self
+
+    class _Janela:
+        events = _Eventos()
+
+    def create_window(title, **kw):
+        criado["kw"] = kw
+        return _Janela()
+
+    stub = types.ModuleType("webview")
+    stub.create_window = create_window
+    stub.start = lambda **kw: None
+    monkeypatch.setitem(sys.modules, "webview", stub)
+    prov = FakeFirewallProvider()
+    eng = Engine(provider=prov, conn_source=FakeConnSource(),
+                 block_source=FakeBlockSource(batches=[]),
+                 runner=lambda req: {"ok": False, "motivo": "offline"},
+                 anchor=tmp_path / "aegis.py")
+    monkeypatch.setattr("aegis_app.make_engine", lambda entry, offline: eng)
+    from aegis_app import run
+    assert run(tmp_path / "aegis.py", offline=True) == 0
+    assert criado["kw"].get("frameless") is True
+    assert criado["kw"].get("resizable") is False
+    assert isinstance(criado["kw"]["js_api"].aegis_api._janela, _Janela)
+    eng.stop()
+
+
+def test_web_tem_titlebar_arrastavel_e_shell_que_prende_o_menu():
+    base = Path(__file__).resolve().parents[1] / "gui" / "web"
+    html = (base / "index.html").read_text(encoding="utf-8")
+    js = (base / "app.js").read_text(encoding="utf-8")
+    css = (base / "app.css").read_text(encoding="utf-8")
+    assert 'class="titlebar"' in html
+    assert 'id="btnMin"' in html and 'id="btnClose"' in html
+    assert "win_drag" in js and "win_minimize" in js and "win_close" in js
+    compacto = "".join(css.split())
+    assert ".titlebar{" in compacto
+    # o scroll mora no main, nunca no body: senao a sidebar sai de cena
+    assert "overflow:hidden" in compacto and "overflow-y:auto" in compacto
+
+
 def test_css_nao_deixa_overlay_engolir_o_cli():
     # display autoral (flex/block) vence o [hidden] do UA: sem esta regra a
     # overlay ficaria sempre visivel e engoliria todos os cliques da janela.

@@ -37,6 +37,7 @@ class AegisApi:
         self._entry = Path(entry)
         self._state = engine.audit.path.parent  # .aegis/ ao lado do entry
         self._escrita = threading.Lock()      # nunca dois UACs ao mesmo tempo
+        self._janela = None    # preenchida em run(): alvo de min/close/drag
 
     # ---------- leitura ----------
     def status(self) -> Dict[str, Any]:
@@ -167,6 +168,27 @@ class AegisApi:
         with self._escrita:
             return self._engine.enable_firewall_log()
 
+    # ---------- janela (titlebar customizada, casca da suite) ----------
+    def win_minimize(self) -> None:
+        if self._janela:
+            self._janela.minimize()
+
+    def win_close(self) -> None:
+        if self._janela:
+            self._janela.close()
+
+    def win_drag(self) -> None:
+        """mousedown na titlebar: entrega a janela ao Windows como caption
+        nativa (mesmo truque do host PS do Sentinel). Sem janela (preview no
+        navegador) e no-op."""
+        if not self._janela:
+            return
+        import ctypes
+        hwnd = int(self._janela.native.Handle.ToInt64())
+        ctypes.windll.user32.ReleaseCapture()
+        # WM_NCLBUTTONDOWN + HTCAPTION: o loop de arrasto passa a ser do shell
+        ctypes.windll.user32.SendMessageW(hwnd, 0x00A1, 2, 0)
+
     @staticmethod
     def _draft(d) -> Dict[str, Any]:
         return {"draft_id": d.draft_id, "status": d.status, "origin": d.origin,
@@ -200,7 +222,9 @@ def run(entry: Path, offline: bool = False) -> int:
     janela = webview.create_window(
         "Aegis — Escudo de Rede · Theroverse",
         url=str(_web_dir() / "index.html"),
-        js_api=_Ponte(api), width=1180, height=760, min_size=(980, 640))
+        js_api=_Ponte(api), width=1180, height=760,
+        frameless=True, resizable=False)
+    api._janela = janela  # private: publico seria recursado pelo pywebview
 
     def _ao_fechar():
         engine.stop()

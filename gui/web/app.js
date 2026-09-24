@@ -64,6 +64,16 @@ document.querySelectorAll(".navitem").forEach(n => {
 });
 function irPara(p) { document.querySelector(`.navitem[data-p="${p}"]`).click(); }
 
+/* ---------- titlebar (janela frameless: arrasto/botao via ponte, como
+   Sentinel/Vector/Genesis; sem ponte (preview) os clicks so nao fazem nada) */
+$("titlebar").addEventListener("mousedown", (ev) => {
+  if (ev.button !== 0) return;
+  if (ev.target.closest("button")) return;
+  api("win_drag").catch(() => {});
+});
+$("btnMin").onclick = () => api("win_minimize").catch(() => {});
+$("btnClose").onclick = () => api("win_close").catch(() => {});
+
 /* ---------- painel ---------- */
 const TRAD = { ESTABLISHED: "ESTABELECIDO", LISTENING: "ESCUTANDO" };
 async function renderPainel() {
@@ -71,6 +81,7 @@ async function renderPainel() {
   try { s = await api("status"); } catch (e) {
     $("footMotor").textContent = "indisponivel";
     $("footMotor").className = "";
+    $("tbPhase").textContent = "motor indisponivel";
     toast("motor indisponivel: " + e, "err");
     return;
   }
@@ -81,6 +92,8 @@ async function renderPainel() {
   const badge = s.revisoes_pendentes.length;
   $("badgeRev").hidden = badge === 0;
   $("badgeRev").textContent = badge;
+  $("tbPhase").textContent = badge
+    ? `revisao: ${badge} pendente${badge > 1 ? "s" : ""}` : "vigiando";
 
   chipEstado("chipConn", s.estado_conexoes, "conexões", "2s");
   chipEstado("chipLog", s.estado_bloqueios, "log de bloqueios", "5s");
