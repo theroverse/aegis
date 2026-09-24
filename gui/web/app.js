@@ -291,7 +291,7 @@ function cardDraft(d, encerrado = false) {
   c.appendChild(el("div", "spec", esc(linhaDaRegra(d.spec)).replaceAll(" · ", "<br>")));
   const row = el("div", "row");
   row.appendChild(el("span", "confia",
-    `confiança declarada: <b class="${esc(d.confidence)}">${esc(d.confiance || "?")}</b>${d.checked ? " · verificado: " + esc(d.checked) : ""}`));
+    `confiança declarada: <b class="${esc(d.confidence)}">${esc(d.confidence || "?")}</b>${d.checked ? " · verificado: " + esc(d.checked) : ""}`));
   if (!encerrado) {
     const rejeitar = el("button", "btn ghost", "Rejeitar");
     rejeitar.onclick = async () => { const r = await api("reject", d.draft_id);
