@@ -130,6 +130,7 @@ def test_enable_firewall_log_usa_o_runner_e_audita(tmp_path):
     eng.apply.runner = runner
     res = eng.enable_firewall_log()
     assert res["ok"] is True
+    assert res["motivo"] == ""
     assert chamadas == [{"op": "enable_firewall_log"}]
     assert any("log.ativacao" in l for l in eng.audit.read())
 
@@ -148,4 +149,23 @@ def test_enable_firewall_log_falha_devolve_motivo_literal(tmp_path):
     assert res["ok"] is False
     assert res["motivo"] == "netsh rc=1: acesso negado"
     assert any("log.ativacao" in l and "netsh rc=1: acesso negado" in l
+               for l in eng.audit.read())
+
+
+def test_enable_firewall_log_erro_de_transporto_e_auditado_literal(tmp_path):
+    # spawn que morre no meio (OSError) nao pode furar a promessa de
+    # auditoria: o erro interno chega ao chamador literal e fica registrado
+    def runner(req):
+        raise OSError("spawn sumiu")
+    prov = FakeFirewallProvider()
+    eng = Engine(
+        provider=prov, conn_source=FakeConnSource(),
+        block_source=FakeBlockSource(batches=[]),
+        runner=runner,
+        anchor=tmp_path / "aegis.py")
+    res = eng.enable_firewall_log()
+    assert res["ok"] is False
+    assert "spawn sumiu" in res["motivo"]
+    assert res["motivo"] == "erro interno: spawn sumiu"
+    assert any("log.ativacao" in l and "erro interno" in l
                for l in eng.audit.read())

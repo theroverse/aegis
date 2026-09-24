@@ -55,11 +55,16 @@ def main(argv):
                 ["netsh", "advfirewall", "set", "allprofiles", "logging",
                  "allowed=disable", "blocked=enable",
                  f"logfilename={log_path}"],
-                capture_output=True, text=True, timeout=60)
+                capture_output=True, timeout=60)
             if r.returncode == 0:
                 out = {"ok": True}
             else:
-                saida = " / ".join((r.stderr or r.stdout or "").splitlines())
+                # sem text=True: o output redirecionado do netsh vem em OEM e
+                # decodificar pelo codepage do LOCALE estouraria UnicodeDecodeError
+                # DEPOIS de um rc=0 — mutacao real marcada ok:False. Captura em
+                # bytes e decode defensivo.
+                bruto = (r.stderr or b"") + b" / " + (r.stdout or b"")
+                saida = " ".join(bruto.decode("utf-8", errors="replace").split())
                 out = {"ok": False,
                        "motivo": f"netsh rc={r.returncode}: {saida[:200]}"}
         else:
