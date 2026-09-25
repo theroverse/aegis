@@ -96,7 +96,11 @@ async function renderPainel() {
     ? `revisao: ${badge} pendente${badge > 1 ? "s" : ""}` : "vigiando";
 
   chipEstado("chipConn", s.estado_conexoes, "conexões", "2s");
-  chipEstado("chipLog", s.estado_bloqueios, "log de bloqueios", "5s");
+  // leitor sao com log DESATIVADO nao e "ativo": o chip obedece a config
+  // real (registro, via s.log_bloqueios) para nao contradizer o banner
+  chipEstado("chipLog", s.log_bloqueios === false
+    ? { estado: "desativado", detalhe: "Ative pelo botao no Painel para ver os pacotes barrados." }
+    : s.estado_bloqueios, "log de bloqueios", "5s");
   const aviso = $("logNotice");
   // o banner obedece a CONFIG REAL do log (registro, via ponte), nao a
   // existencia do pfirewall.log: o Windows so cria o arquivo na primeira

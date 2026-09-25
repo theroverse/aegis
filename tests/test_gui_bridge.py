@@ -422,6 +422,17 @@ def test_web_tem_titlebar_arrastavel_e_shell_que_prende_o_menu():
     assert "overflow:hidden" in compacto and "overflow-y:auto" in compacto
 
 
+def test_chip_log_reflete_config_nao_so_o_leitor():
+    # O chip "log de bloqueios" so media a saude do leitor do anel: com o
+    # log DESATIVADO ele dizia "ativo" na mesma tela do banner "desativado"
+    # — a contradicao que o usuario viu. O chip agora obedece tambem a
+    # config real (s.log_bloqueios) que vem do registro.
+    base = Path(__file__).resolve().parents[1] / "gui" / "web"
+    js = (base / "app.js").read_text(encoding="utf-8")
+    linha = next(l for l in js.splitlines() if 'chipEstado("chipLog"' in l)
+    assert "log_bloqueios" in linha
+
+
 def test_css_nao_deixa_overlay_engolir_o_cli():
     # display autoral (flex/block) vence o [hidden] do UA: sem esta regra a
     # overlay ficaria sempre visivel e engoliria todos os cliques da janela.
